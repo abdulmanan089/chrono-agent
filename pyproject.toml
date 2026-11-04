@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chrono-agent"
+version = "0.3.0"
+description = "Local filesystem snapshots, savepoints, rollback, branches, advisory command scanning and a tamper-evident audit trail."
+requires-python = ">=3.8"
+readme = "README.md"
+license = {file = "LICENSE"}
+
+[project.urls]
+Repository = "https://github.com/abdulmanan089/chrono-agent"
+Issues = "https://github.com/abdulmanan089/chrono-agent/issues"
+
+[project.scripts]
+chrono = "chrono_agent.cli:main"
+
+[tool.setuptools]
+packages = ["chrono_agent"]
