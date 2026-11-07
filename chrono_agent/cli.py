@@ -476,7 +476,9 @@ def main(argv=None):
     x.add_argument("--verify-remote", action="store_true", help="with --push: also compare the remote chain head")
     x.set_defaults(f=cmd_audit)
     x = sub.add_parser("demo", help="replay the agent-blunder scenario"); x.add_argument("task", nargs="*"); x.set_defaults(f=cmd_demo)
-    known = {"init","snapshot","log","status","diff","rollback","scan","run","branch","checkout","merge","demo","audit","policy","team","git","db","dashboard","mcp","-h","--help","--version"}
+    from .fleet_cli import install
+    install(sub)
+    known = {"gateway","fleet","approvals","init","snapshot","log","status","diff","rollback","scan","run","branch","checkout","merge","demo","audit","policy","team","git","db","dashboard","mcp","-h","--help","--version"}
     argv = sys.argv[1:] if argv is None else argv
     if argv and argv[0] not in known and not argv[0].startswith("-") and " " in argv[0]:  # compatibility: quoted task -> demo
         argv = ["demo"] + argv
