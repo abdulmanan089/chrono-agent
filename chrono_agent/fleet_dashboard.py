@@ -1,3 +1,5 @@
+# Chrono Agent  (c) 2026 Abdul Manan.  Source-available; see LICENSE.
+# Resale or offering as a hosted service is prohibited.  All rights reserved.
 """Live loopback fleet report. Token kept in memory only; never in URL/storage."""
 PAGE='''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ChronoAgent Fleet</title>
 <style>body{background:#101216;color:#e5e7eb;font:15px system-ui;margin:0}main{max-width:1120px;margin:auto;padding:32px}h1{color:#45d9cd}input,button{background:#20252c;color:inherit;border:1px solid #59616b;padding:10px;border-radius:4px}table{border-collapse:collapse;width:100%;min-width:620px;margin-bottom:28px}td,th{border-bottom:1px solid #343b44;padding:12px;text-align:left;overflow-wrap:anywhere}section{overflow-x:auto}small{color:#adb4bc}.ok{color:#77df91}.bad{color:#ff7676}button{cursor:pointer}@media(max-width:600px){main{padding:16px}table{font-size:13px}}</style>

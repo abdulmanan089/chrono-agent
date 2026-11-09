@@ -1,0 +1,61 @@
+Chrono Agent - Proprietary Commercial License
+Copyright (c) 2026 Abdul Manan. All Rights Reserved.
+
+PROPRIETARY AND CONFIDENTIAL.
+
+1. Ownership
+   This software, including its source code, compiled binaries, rule sets,
+   scoring tables, data files, and documentation (the "Software"), is the
+   exclusive property of the copyright holder and is protected by copyright
+   and other intellectual-property laws and treaties.
+
+2. Restrictions
+   Unless the copyright holder has granted written permission in a separate
+   signed agreement, you may NOT, in whole or in part:
+     (a) copy, publish, distribute, sublicense, sell, rent, or lease the
+         Software;
+     (b) decompile, disassemble, reverse engineer, or otherwise attempt to
+         derive the source code or algorithms from any binary form, except to
+         the limited extent that applicable law expressly permits despite this
+         restriction;
+     (c) modify the Software or create derivative works from it;
+     (d) remove or alter any copyright, trademark, or proprietary notice.
+
+3. No license by delivery
+   Receiving a copy of the Software, in source or binary form, does NOT grant
+   any license to use it beyond the terms of a written agreement with the
+   copyright holder. No rights are granted by implication or estoppel.
+
+4. Evaluation
+   Any copy provided for evaluation may be used only to assess the Software,
+   for the period and on the terms the copyright holder states in writing, and
+   must be destroyed on request.
+
+5. No warranty
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. The Software is a
+   guardrail for cooperating tools, not a security sandbox; see the product
+   documentation for its stated limits.
+
+6. Limitation of liability
+   TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDER SHALL NOT BE
+   LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL
+   DAMAGES ARISING OUT OF OR RELATED TO THE SOFTWARE OR ITS USE.
+
+7. Termination
+   Any breach of this license terminates your rights under it automatically,
+   and you must then stop using and destroy all copies of the Software.
+
+8. Governing law
+   This license is governed by the laws of Pakistan, without regard
+   to its conflict-of-law rules.
+
+Contact for licensing: manandogar112@gmail.com
+
+-----------------------------------------------------------------------------
+NOTE (not part of the license): A license forbids copying; it does not make
+copying impossible. Anyone who receives the files can read them. For a security
+and audit tool, open or source-available code is usually an advantage, because
+buyers trust what they can inspect. Have a lawyer review this template before
+you rely on it, and keep it up to date.

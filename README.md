@@ -1,187 +1,241 @@
-# ChronoAgent ⏱️🛡️
+# Chrono Agent — a safety layer for AI coding agents
 
-**Savepoints, rollback, risk checks and a tamper-evident audit trail for AI agents that touch real files.**
-
-[![PyPI](https://img.shields.io/pypi/v/chrono-agent.svg)](https://pypi.org/project/chrono-agent/)
-[![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![MCP](https://img.shields.io/badge/MCP-server-8A2BE2.svg)](https://modelcontextprotocol.io/)
-![Dependencies](https://img.shields.io/badge/dependencies-zero-brightgreen.svg)
-
-> Give your AI agent a workspace. Take a savepoint. If the agent gets it wrong, put everything back with one command, and keep a record of what happened.
-
----
-
-## Why we built it
-
-AI agents can now write code, edit files, run commands and change databases by themselves. That is useful, and it is also why many companies are slow to give agents real access. One hallucinated command, a wrong refactor or a corrupted config can cost hours, or it can cost data.
-
-Most teams have two bad options:
-
-- **Don't let the agent act**, and lose most of the value.
-- **Let it act and hope**, and find out later what changed.
-
-ChronoAgent adds a third option: **let the agent work inside a recoverable workspace.** Before risky work you take a savepoint. ChronoAgent checks commands against risk rules, records every action in a hash-chained audit log and lets you roll back to any savepoint. Rollback also saves a "redo" point, so you can undo the undo.
-
-It is a small, dependency-free Python tool that runs on your own machine. Your code does not leave it.
-
----
-
-## What it does
-
-### Core recovery
-| Feature | What you get |
-|---|---|
-| **Savepoints** | `snapshot` records the exact state of the workspace with a message. |
-| **Rollback + redo** | `rollback <id>` restores files to a savepoint. It first saves a redo savepoint so nothing is lost by accident. |
-| **History, status, diff** | See every savepoint, what changed since the last one and how two states differ. |
-| **Branches & merge** | Try different approaches from the same savepoint and merge the one you keep. |
-| **Integrity checks** | Stored objects are hash-verified before restore. Restore paths are validated so files can't be written outside the workspace. Locking prevents corruption from two writes at once. |
-| **Safe `run`** | Runs a command under protection. A successful run is recorded as a savepoint, and a failed run can be rolled back. Commands run without a shell by default. |
-
-### Safety & governance
-| Feature | What you get |
-|---|---|
-| **Risk scanner** | `scan "<command>"` scores a command from 0 to 100 (LOW → CRITICAL) and returns allow, warn or block. Example: `rm -rf /` → CRITICAL, 98, block. |
-| **Policies** | Set the risk levels your team allows, warns on or blocks. |
-| **Human approvals & roles** | Risky actions can wait for a person to approve them. Roles control who can approve. |
-| **Tamper-evident audit** | Every action goes into a SHA-256 hash-chained log. `verify-audit` reports whether the chain is intact. You can also push the log to a remote endpoint. |
-| **HTML report** | A browser report of savepoints, risk checks and audit status that you can share with a reviewer or manager. |
-
-### Beyond files
-| Feature | What you get |
-|---|---|
-| **Git awareness** | Tracks Git state alongside savepoints and includes an optional hook. |
-| **SQLite snapshots** | Take and restore snapshots of SQLite databases, not just source files. |
-
-### For AI agents (v0.4.0)
-| Feature | What you get |
-|---|---|
-| **MCP server** | A built-in Model Context Protocol server. Claude Desktop and other MCP clients can call `chrono_scan`, `chrono_snapshot`, `chrono_rollback`, `chrono_log` and `chrono_verify_audit` as tools. |
-| **Fleet registry** | Register any number of agents (2, 5 or 40), each with its own ID. |
-| **Isolated agent lanes** | Each agent gets its own workspace root. Roots can't overlap, so agents can't overwrite each other, and each lane has separate savepoints and rollback. |
-| **Fleet gateway (pilot)** | A token-protected local proxy for OpenAI Chat Completions and Anthropic Messages APIs. It checks tool calls that go through it, logs them and can send risky ones for approval. |
-| **Live dashboard** | `http://127.0.0.1:8787/chrono/dashboard` shows agents, pending approvals and the audit trail. |
-
----
-
-## How companies can use it with confidence
-
-- **Start with a savepoint.** Any agent task that goes wrong can be rolled back.
-- **Give each agent its own lane.** A coding agent and a review agent work in separate folders with separate history.
-- **Put a person in the loop.** High-risk actions wait for approval, and each decision is logged.
-- **Prove what happened.** The hash-chained audit log and HTML report give reviewers evidence instead of guesses.
-- **Keep data local.** No cloud account is needed and there are no third-party dependencies. It's MIT-licensed, so you can read every line.
-
----
-
-## Install
+[![PyPI](https://img.shields.io/pypi/v/chrono-agent?label=PyPI)](https://pypi.org/project/chrono-agent/)
+![Python](https://img.shields.io/badge/python-3.8%2B-blue)
+![License](https://img.shields.io/badge/license-source--available-orange)
+![Tests](https://img.shields.io/badge/tests-235%20run%20%C2%B7%200%20failed-brightgreen)
+![Red team](https://img.shields.io/badge/red%20team-45%20pass%20%C2%B7%200%20fail%20%C2%B7%208%20limits-brightgreen)
+![Tested on](https://img.shields.io/badge/tested%20on-Windows%2011-informational)
 
 ```bash
-pip install chrono-agent
+pip install --upgrade chrono-agent
 ```
 
-> PyPI currently has **v0.3.0** (core recovery, scanner, policies, approvals, Git, SQLite, MCP, audit, report).
-> The **v0.4.0 fleet features** (registry, lanes, gateway, dashboard) are in the GitHub Release ZIP:
-> ```bash
-> pip install chrono-agent-0.4.0rc1.zip
-> ```
-
-On Windows, if `chrono` isn't recognised, use `python -m chrono_agent` for every command. It works the same way.
-
----
-
-## Quickstart (5 minutes)
-
-```bash
-mkdir C:\chrono-test
-cd C:\chrono-test
-python -m chrono_agent init
-
-echo print("Hello Safe World") > app.py
-python -m chrono_agent snapshot -m "v1 safe state"
-
-:: the agent (or you) makes a bad change
-echo print("BROKEN") > app.py
-
-python -m chrono_agent log
-python -m chrono_agent rollback <snapshot_id>
-type app.py          :: -> print("Hello Safe World")
-
-python -m chrono_agent scan "rm -rf / --no-preserve-root"   :: -> CRITICAL / block
-python -m chrono_agent verify-audit                         :: -> chain intact
-```
-
----
-
-## Connect your AI agent
-
-ChronoAgent only sees what is routed to it. Choose the option that matches your agent:
-
-| Your agent | How to connect |
+| What was measured (Windows 11, Python 3.13) | Result |
 |---|---|
-| Claude Desktop or another **MCP client** | MCP server (below) |
-| An app or agent that calls the **OpenAI / Anthropic API** and lets you set a custom base URL | Fleet gateway (below) |
-| A **script or CLI agent** | Wrap it: `python -m chrono_agent run -- <command>` |
-| Your own **Python code** | Import `chrono_agent` and call snapshot/rollback directly |
-| IDE or web chat with none of the above | Take manual savepoints before and after the agent's task |
+| Dangerous commands blocked (scanner corpus) | **108 / 108** |
+| Obfuscated variants blocked | **22 / 22** |
+| Everyday developer commands left alone | **88 / 88** (no false alarms on this corpus) |
+| Unit and integration tests | **235 run · 230 passed · 5 skipped · 0 failed** |
+| Red-team suite | **45 pass · 0 fail · 8 known limits** of 53 |
+| First snapshot, 5,000 files | **23.0 s** (137.5 s before the 0.5.0 optimisation, about 6× faster) |
+| Savepoint with nothing changed, 1,000 files | **1.8 s** (9.7 s in 0.4.1rc2) |
 
-### Claude Desktop (tested on Windows)
+The corpus and the red-team suite were written by the project and extended with an AI assistant (Claude). They catch regressions; they are not an independent security audit. Details: `VERIFICATION.md`, `RED_TEAM_REPORT.md`, `docs/`.
 
-1. Initialise the folder the agent will work in (`python -m chrono_agent init` inside it).
-2. Open **Claude → Settings → Developer → Edit Config**. That opens `%APPDATA%\Claude\claude_desktop_config.json`.
-3. Add `mcpServers` at the **top level**, next to any existing settings rather than inside `preferences`:
+```
+  AI agent: Claude Code / Claude Desktop / any MCP client / chrono run
+        |
+        v
+  [1] GATE         105 rules + de-obfuscation + scripts, npm scripts and make targets it runs
+        |          risk >= 70 -> refused before any process starts
+        v
+  [2] SAVEPOINT    content-addressed copy of the project files (skipped for read-only commands)
+        |
+        v
+      command runs
+        |
+        v
+  [3] ROLLBACK     byte-identical restore, every rollback can be undone (rescue savepoint)
+        |
+        v
+  [4] AUDIT LOG    HMAC-SHA256 signed chain; key and external witness kept outside the project
+```
+
+Chrono Agent sits between an AI coding agent and your machine. It does four things:
+
+1. **Stops dangerous commands before they run.** This includes the scripts a command starts (`python cleanup.py`, `npm test`, `make clean`, `x.bat`), not only the command text.
+2. **Takes a savepoint before every command that can change files** (and whenever you ask), so a bad change to your project files can be rolled back, and the rollback itself can be undone.
+3. **Keeps a signed, tamper-evident audit log** of everything that was scanned, blocked, run, restored or approved.
+4. **Guards the agent's own shell and edit tools** (Claude Code hook), not only the commands it chooses to send to Chrono.
+
+It is a dependency-free Python package (3.8+) with a CLI (`chrono`), an MCP server for AI clients, and a Python SDK. The fleet gateway pilot is described in `FLEET.md`.
+
+> **Read "What Chrono cannot do" below before you rely on it.** It is a guardrail for cooperating tools on one machine. It is not a sandbox, an antivirus or a backup.
+
+## Install / upgrade
+```cmd
+python -m pip install --upgrade chrono-agent
+python -m chrono_agent --version
+```
+Expected: `chrono-agent 0.5.1`. If `chrono` is not on PATH, every example also works as `python -m chrono_agent ...`. Python 3.8 or newer is required.
+
+Upgrading from 0.4.x keeps your `.chrono` folders. Old audit records keep verifying, and new records are signed from the first action after the upgrade (see *Audit trail*).
+
+## Quick start with an AI agent (Claude Code, Claude Desktop, Cursor)
+In your project folder:
+
+```cmd
+chrono init
+chrono guard install
+chrono policy pin
+```
+
+* `chrono init` starts tracking the folder and takes the first savepoint.
+* `chrono guard install` adds a PreToolUse hook to `.claude/settings.json`. From then on, every Bash/PowerShell command and every file edit the agent makes goes through Chrono first. The command runs a self-test and tells you if the hook works with your Python. Restart the client afterwards.
+* `chrono policy pin` (optional, after you write a `chrono-policy.yaml`) locks the policy. If anyone edits it later, every command is refused until a person reviews the change and pins again.
+
+For clients that use MCP, add Chrono as a server (`examples/mcp-config.json`):
 
 ```json
-{
-  "mcpServers": {
-    "chrono": {
-      "command": "C:\\Program Files\\Python313\\python.exe",
-      "args": [
-        "-c",
-        "import os; os.chdir('C:/chrono-test'); from chrono_agent.mcp_server import serve; serve()"
-      ]
-    }
-  }
-}
+{ "mcpServers": { "chrono": { "command": "python", "args": ["-m", "chrono_agent", "mcp"] } } }
 ```
 
-4. Save the file, then quit Claude completely: `taskkill /F /IM Claude.exe`. Reopen it.
-5. Ask Claude: *"Take a chrono snapshot called v1 safe state"*, then *"Show the chrono log and verify the audit trail."*
+OpenAI Codex CLI reads MCP servers from `~/.codex/config.toml`:
 
-Tips: run `where python` to find the right path. Use the full Python path instead of `python`. The `os.chdir(...)` part makes the server open in your initialised folder. Without it you'll see *"Not a chrono project"*.
-
-### Multi-agent fleet (pilot)
-
-```bash
-:: two agents, two separate lanes (outside the control folder)
-mkdir C:\workspaces\coder C:\workspaces\reviewer
-
-:: start the gateway: tokens must be different and at least 24 characters each
-python -m chrono_agent fleet gateway --host 127.0.0.1 --port 8787 ^
-  --gateway-token <your-gateway-token-24+chars> ^
-  --admin-token <your-different-admin-token-24+chars>
+```toml
+[mcp_servers.chrono]
+command = "python"
+args = ["-m", "chrono_agent", "mcp"]
 ```
 
-Open `http://127.0.0.1:8787/chrono/dashboard`, enter the admin token, and point your agent's API base URL at the gateway. See `FLEET.md` for registering agents and lanes.
+Claude Desktop and Claude Code were tested with this release. Codex and other MCP clients use the same stdio protocol but have not been tested yet.
 
----
+The MCP server exposes `chrono_scan`, `chrono_run`, `chrono_snapshot`, `chrono_status`, `chrono_log`, `chrono_rollback` and `chrono_audit_verify`. `chrono_run` is the enforced path: blocked commands never start.
 
-## Honest scope
+To make `chrono_run` the **only** way the agent can run commands, deny the client's own shell tools:
 
-We would rather you trust ChronoAgent than be impressed by it:
+```cmd
+chrono guard install --deny-raw-shell
+```
 
-- It protects **what is routed through it** (CLI, MCP, SDK or gateway). It does not intercept everything on the operating system, and IDE edits or web chats aren't captured automatically.
-- The risk scanner is **heuristic and advisory**. It is not a sandbox.
-- The fleet gateway is a **pilot** for local, loopback use. Review it before you use it in production.
-- Savepoints are local copies. They don't replace backups or version control.
+## Command reference (one command at a time)
+```cmd
+chrono init
+chrono snapshot -m "before agent"
+chrono run python agent.py
+chrono status
+chrono diff
+chrono log
+chrono rollback
+chrono branch feature
+chrono checkout main
+chrono merge feature
+chrono scan "rm -rf /"
+chrono guard install
+chrono guard status
+chrono guard uninstall
+chrono policy
+chrono policy pin
+chrono prune --keep-auto 200 --dry-run
+chrono audit
+chrono audit --verify
+chrono audit --keys
+chrono audit --rotate-key
+chrono audit --reset-witness
+chrono audit --csv --out audit-report.csv
+chrono audit --push https://audit.example.com/ingest --verify-remote
+chrono team add sara --role developer
+chrono git install-hook
+chrono db add appdb --engine sqlite --path app.db
+chrono db snapshot appdb
+chrono db restore appdb
+chrono dashboard --out report.html
+chrono mcp
+chrono --help
+```
+Try these in a disposable test project first. `init` is idempotent. Default rollback restores the current branch HEAD; choose an ID from `log` to go further back. Every rollback first saves a **rescue savepoint** of unsaved changes and prints `undo this rollback: chrono rollback ID`.
 
----
+## The guard hook (closes the "other shell" gap)
+An MCP server only sees what the agent sends to it. An agent that also has the client's own Bash or PowerShell tool could run anything around Chrono. `chrono guard install` closes that gap for Claude Code and compatible clients. The client runs `python -m chrono_agent guard hook` before each tool call and passes the call as JSON:
 
-## Contributing & contact
+| Chrono decision | What the client does |
+|---|---|
+| block (risk 70+, or a policy `block` rule) | refuses the call (exit code 2) and shows the reason to the agent; nothing runs |
+| approve (policy approval band) | asks the person at the keyboard (`permissionDecision: ask`) |
+| allow | takes a savepoint first (not for read-only commands), then follows the client's normal permission rules; the guard never auto-approves |
 
-Issues, pull requests and pilot partners are welcome.
+File edits (Write, Edit, MultiEdit, NotebookEdit) are refused when they target Chrono's own control files: `.chrono/`, `chrono-policy.yaml`, `.claude/settings*.json` and the Chrono home with its keys. Any error inside the guard blocks the call (fail closed). The hook settings are control data: a rollback never removes or reverts them.
 
-- **Author:** Abdul Manan ([@abdulmanan089](https://github.com/abdulmanan089))
-- **PyPI:** https://pypi.org/project/chrono-agent/
-- **License:** MIT
+`--scope user` installs into `~/.claude/settings.json` instead, so dangerous commands are refused in every folder, not just Chrono projects. `chrono guard status` shows what is installed and runs the self-test again; do that after every Python or Chrono upgrade.
+
+## What the scanner reads
+Every command is matched against 100+ rules: recursive and forced deletes in shells and languages, disk and partition wipes, shadow-copy/backup/recovery wiping, firewall and Defender tampering, autostart registry keys and scheduled tasks, secret exfiltration, reverse shells, encoded payloads, database wipes, git history rewrites, cloud and Kubernetes deletes, and more. It looks through common text obfuscation (quote splitting, backslashes, zero-width characters, `$IFS`, brace expansion).
+
+**New in 0.5.0:** on every enforcing path (`chrono_run`, the guard, `chrono run`, `chrono scan`) it also reads what the command will run, in the project folder:
+
+* script files: `python x.py`, `python -m pkg.mod`, `node x.js`, `deno run`, `bun run`, `ruby`, `perl`, `php`, `bash x.sh`, `./x.sh`, `x.bat`, `cmd /c x.cmd`, `powershell -File x.ps1`, and the scripts those batch/shell files start;
+* package scripts: `npm test`, `npm run build` (including `pre`/`post` scripts), `npm install` / `yarn` (the project's own `preinstall`/`install`/`postinstall`/`prepare`), `yarn X`, `pnpm X`;
+* make targets: `make`, `make clean`, and the targets they depend on.
+
+Inside files only clear findings count (score 60+), and comment lines are skipped. Files over 1 MB, more than 16 scripts per command, or nesting deeper than 4 levels are refused rather than half-checked. Without the project folder (`assess(cmd)` in the SDK) nothing is read, as before.
+
+## Savepoints, rollback and what they cover
+`chrono_run` and the guard take an automatic savepoint before each command that could change files. Read-only commands (`dir`, `ls`, `type`, `git status`, `git log`, `python --version`, `pip list`, `chrono status` and similar) skip it, because they cannot change anything. Set `CHRONO_SAVEPOINTS=always` to take one anyway. On Windows a program with the same name in the project folder (for example a `where.bat`) is never treated as read-only.
+
+**A rollback restores the tracked files in the project folder, and nothing else.** It does not undo:
+
+* system changes: registry, services, scheduled tasks, shadow copies, boot settings, firewall/Defender settings, installed software;
+* files outside the project folder, or in ignored folders (`.git`, `node_modules`, `.venv`, `venv`, `__pycache__`, `.idea`, `.vscode`);
+* network calls, messages, payments, cloud resources;
+* databases you did not register with `chrono db add` (and registered ones only back to their last `chrono db snapshot`).
+
+For those, the scanner's block is the only protection, which is why Chrono blocks them. Every `chrono_run` and `chrono_rollback` reply states this scope in its `covers` field, so an agent cannot mistake the time machine for a whole-system restore.
+
+Old automatic savepoints can be pruned: `chrono prune --keep-auto 200` or `--older-than 30` (days), with `--dry-run` first. Manual snapshots, commits, merges and branch heads are never pruned. History stays linked and unused file versions are removed. A `retention:` section in the policy applies the same limits automatically after each `chrono_run`.
+
+## Audit trail
+Every state change, scan, block, approval, guard decision and policy change is appended to `.chrono/audit.jsonl`: who, when, from which host and folder, which snapshot, the risk score and the outcome.
+
+**Since 0.5.0 the log is signed by default.** Each record carries an HMAC-SHA256 made with a key stored **outside the project**, in `%USERPROFILE%\.chrono-agent\keys` (or `$CHRONO_HOME/keys`), created on first use. Someone who can only write the project folder can no longer rebuild a valid-looking chain after editing it. After each record Chrono also updates an **external witness** (the newest record's number and digest, in the same home folder). Cutting off the newest records, or replacing the whole log, is therefore detected too, and the next write does not hide it.
+
+```cmd
+chrono audit --verify            " chain, signatures, witness and snapshot anchors
+chrono audit --keys              " key id and key-store location (never the key itself)
+chrono audit --rotate-key        " new key; older records keep verifying
+chrono audit --reset-witness     " after you restored .chrono from a backup on purpose (recorded)
+```
+
+* **Back up `.chrono-agent\keys`.** A log whose key is lost can no longer be verified.
+* `CHRONO_AUDIT_KEY=<secret>` uses a key you manage yourself (a vault, a CI secret) instead of the key store.
+* `CHRONO_AUDIT_REQUIRE_KEY=1` is strict mode: unsigned records fail verification and unsigned writing is refused.
+* `CHRONO_AUDIT_UNSIGNED=1` switches signing off (the 0.4 behaviour). Use it only for testing.
+* Records from 0.4 stay valid as an older-format prefix. A signed log that later contains an unsigned record fails, because that is what a downgrade attack looks like.
+* `CHRONO_MODEL` / `CHRONO_AGENT` label every record with the model and client. They are self-reported labels, not proof of identity.
+
+## Policy file (`chrono-policy.yaml`)
+A starting point is in `examples/chrono-policy.yaml`. It covers thresholds (`block`, `approve`), custom `rules`, an exact-command `allow:` list (backslashes allowed since 0.5.0, for example `reg add HKCU\Software\MyCompany\MyApp /v * /d * /f`), named `approvers`, `roles`, the `gates: mcp.rollback: approve` human gate, and `retention`. `chrono policy` validates the file. A broken policy blocks every enforced command until it is fixed (fail closed).
+
+* `chrono policy pin` stores the file's fingerprint (signed) in the Chrono home. After that, any edit blocks every command on the enforcing paths until a person runs `chrono policy pin` again.
+* Every change Chrono notices is written to the audit log as `policy.changed`.
+* The policy is control data: snapshots ignore it, so a rollback never deletes or reverts it.
+
+## Run / rescue behaviour (`chrono run`)
+Programs run with exact argument boundaries, without a shell by default (`chrono run -- python "my agent.py"`). A successful run saves a post-command snapshot before printing COMMIT. On failure: `r` rolls back, `d` shows the diff (the program is not rerun), `t` retries, `k` keeps changes uncommitted, and end of input rolls back. Shell mode needs one quoted string: `chrono run --shell "echo hello"`. `--force` bypasses the scanner, not OS permissions. It needs the `run.force` role if the policy sets one, and the scanner refuses `chrono run --force` when an agent tries it through the guard or `chrono_run`.
+
+## Python SDK
+```python
+from chrono_agent import Transaction
+
+with Transaction(".", "trusted agent") as tx:
+    # first set of edits
+    tx.savepoint("models")
+    # more edits; tx.rollback_to("models") keeps the first set
+# an exception restores BEGIN; a clean exit saves COMMIT
+```
+
+## What Chrono cannot do (read this)
+- **It is not a sandbox.** A program that is allowed to run can do anything your account can do. The scanner reads command text and the scripts a command starts. It cannot follow variables (`a=rm; $a -rf /`), decode arbitrary payloads, see inside compiled programs (`.exe`, `.pyc`) or modules a script imports, or know what a remote server does. For hostile code, run agents with least privilege in a container or VM.
+- **Enforcement covers the paths that go through Chrono:** MCP `chrono_run`, the guard hook, `chrono run`. An agent with an unguarded shell, an IDE extension that runs its own commands, or a person at a terminal are not covered.
+- **Rollback covers project files only** (see *Savepoints, rollback and what they cover*). Keep independent backups.
+- **Local trust boundary:** keys, witnesses and pins live in the Chrono home of the same OS account. Anyone who can read that folder can forge records, and anyone who can write it can move the witness or pin. Use `CHRONO_AUDIT_KEY` from a vault and `chrono audit --push` to a store the agent cannot reach when that matters.
+- **Approvals and roles are named, not authenticated.** A process with its own unguarded shell can run `chrono approvals approve`. The guard refuses that command from the agent, but only the guard path is covered.
+- Symlinks and special files are not tracked. Empty directories, ACLs, timestamps and alternate streams are not preserved. Very large files are held in memory during snapshot and restore.
+- Power loss or `kill -9` in the middle of a restore can leave a partial restore. `.chrono` is not an independent backup.
+- The fleet gateway's own event chain (`FLEET.md`) is still plain SHA-256. It is a pilot.
+
+## Tests
+In the extracted package folder:
+```cmd
+python -m unittest discover -s tests -v
+python benchmarks\scanner_benchmark.py
+python benchmarks\redteam.py
+```
+Tests use temporary projects and a temporary Chrono home, never your real project or keys. Results and the test environment are in `VERIFICATION.md`. What changed since the 0.4.1rc2 audit is in `docs/REMEDIATION.md`, and the threat model is in `SECURITY.md`.
+
+## Reports
+- `docs/Chrono-0.5.0-Release-Report.md`: architecture and verification report for 0.5.0.
+- `docs/chrono-audit-report.html`: the functional test of 0.4.1rc2 and the re-test of 0.5.0 (30/30 checks). It was run by an AI assistant and is not a certification.
+
+## License
+Copyright (c) 2026 Abdul Manan. Chrono Agent is **source-available, not open source**. You may install and use it, including inside your company, and read the code. You may not resell it, offer it as a hosted service, or distribute modified versions without a commercial license. See `LICENSE`; for commercial terms see `LICENSE-COMMERCIAL.txt` or write to manandogar112@gmail.com.

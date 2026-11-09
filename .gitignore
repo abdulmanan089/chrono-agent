@@ -1,12 +1,42 @@
-.env
-.env.*
-.chrono/
+# Python build and cache output
 __pycache__/
 *.py[cod]
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+
+# Virtual environments
 .venv/
 venv/
-dist/
-build/
-*.egg-info/
+env/
+
+# Chrono runtime data: savepoints, audit logs, signing keys, witnesses, pins
+.chrono/
+.chrono-agent/
+*.key
+witness/
+pins/
+
+# Secrets and credentials (never commit these)
+.pypirc
+.env
+.env.*
+*.env
+!.env.example
+
+# Logs and generated reports
 *.log
 chrono-report.html
+
+# Local AI-client settings
+.claude/settings.local.json
+
+# Benchmark output with local paths
+benchmarks/redteam_results.json
+
+# Editors and OS files
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store

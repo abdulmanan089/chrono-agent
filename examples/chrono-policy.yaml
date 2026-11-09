@@ -1,0 +1,41 @@
+# chrono-policy.yaml - an example for a team project.
+# Copy it to the project root, change it to fit, then:
+#   chrono policy        (checks that the file is valid)
+#   chrono policy pin    (locks it: any later edit blocks every command until a person pins again)
+
+thresholds:
+  block: 70          # risk at or above this is refused
+  approve: 40        # 40-69 needs a named person (sudo, stopping services, file deletes inside code)
+
+gates:
+  mcp.rollback: approve   # an AI client may not roll back on its own; a person approves first
+
+approvers:
+  - your-name
+
+# Role gates need a team roster (chrono team add NAME --role admin) before you turn them on:
+# roles:
+#   rollback: developer
+#   mcp.rollback: admin
+
+allow:                    # exact routine commands that skip the built-in scan
+  - rm -rf node_modules
+  - rm -rf dist/*
+  - rd /s /q node_modules
+  - reg add HKCU\Software\MyCompany\MyApp /v * /d * /f
+
+retention:                # automatic savepoints taken before agent commands
+  keep_auto: 500
+  older_than_days: 30
+
+rules:
+  - name: no-force-push
+    pattern: "git push.*--force"
+    score: 85
+    action: block
+    reason: "force push rewrites shared history"
+  - name: production-migrations
+    pattern: "alembic upgrade|prisma migrate deploy|rails db:migrate"
+    score: 50
+    action: approve
+    reason: "a schema change needs a named person"

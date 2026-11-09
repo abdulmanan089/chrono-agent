@@ -1,3 +1,5 @@
+# Chrono Agent  (c) 2026 Abdul Manan.  Source-available; see LICENSE.
+# Resale or offering as a hosted service is prohibited.  All rights reserved.
 """Local fleet pilot. Separate workspaces, SQLite coordination and audit chain.
 Not an OS sandbox or distributed transaction coordinator.
 """
@@ -17,6 +19,17 @@ from .policy import load, evaluate
 
 IDENTITY = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z')
 
+def _strings(value):
+    """Every string inside a structured action, in order."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for k in sorted(value, key=str):
+            yield from _strings(value[k])
+    elif isinstance(value, (list, tuple)):
+        for v in value:
+            yield from _strings(v)
+
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True)
 
@@ -32,9 +45,11 @@ class Fleet:
         with self.db() as db:
             db.executescript('''
             CREATE TABLE IF NOT EXISTS agents(id TEXT PRIMARY KEY, model TEXT, seen REAL, calls INTEGER DEFAULT 0, blocked INTEGER DEFAULT 0, workspace TEXT UNIQUE);
-            CREATE TABLE IF NOT EXISTS approvals(id TEXT PRIMARY KEY, agent TEXT, digest TEXT, status TEXT, created REAL, expires REAL, actor TEXT);
+            CREATE TABLE IF NOT EXISTS approvals(id TEXT PRIMARY KEY, agent TEXT, digest TEXT, status TEXT, created REAL, expires REAL, actor TEXT, summary TEXT);
             CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY, ts REAL, agent TEXT, action TEXT, detail TEXT, prev TEXT, hash TEXT);
             ''')
+            if 'summary' not in [r[1] for r in db.execute('PRAGMA table_info(approvals)')]:
+                db.execute('ALTER TABLE approvals ADD COLUMN summary TEXT')
 
     @contextlib.contextmanager
     def db(self):
@@ -104,7 +119,12 @@ class Fleet:
         bound to agent + entire action + current policy, single-use and expiring."""
         policy = load(self.root)
         text = canonical(action)
+        # Scan the decoded strings too: JSON escaping can hide a command.
+        flat = '\n'.join(_strings(action))
         r = evaluate(text,policy)
+        r2 = evaluate(flat,policy) if flat else r
+        if (r2['blocked'], r2['score']) > (r['blocked'], r['score']):
+            r = r2
         digest = hashlib.sha256(canonical([action,policy]).encode()).hexdigest()
         result = dict(r)
         with self.db() as db:
@@ -118,7 +138,7 @@ class Fleet:
                     pending = db.execute("SELECT id FROM approvals WHERE agent=? AND digest=? AND status='pending' AND expires>?",(agent,digest,now)).fetchone()
                     aid = pending[0] if pending else uuid.uuid4().hex
                     if not pending:
-                        db.execute('INSERT INTO approvals VALUES(?,?,?,?,?,?,?)',(aid,agent,digest,'pending',now,now+600,None))
+                        db.execute('INSERT INTO approvals(id,agent,digest,status,created,expires,actor) VALUES(?,?,?,?,?,?,?)',(aid,agent,digest,'pending',now,now+600,None))
                     result['approval_id']=aid
                     result['new_approval']=not bool(pending)
             result['blocked'] = result['action'] != 'allow'
@@ -126,6 +146,27 @@ class Fleet:
                 db.execute('UPDATE agents SET blocked=blocked+1 WHERE id=?',(agent,))
             # Do not retain prompts/arguments/secrets in fleet audit.
             self.event(db,agent,'action.'+result['action'],{'digest':digest,'score':r['score'],'approval':result.get('approval_id')})
+        return result
+
+    def gate(self, agent, action, summary):
+        """Require a named human approval for one structured action, whatever its
+        risk score. Single-use, expires in ten minutes, bound to the action and
+        the current policy. A person approves with: approvals approve ID --by NAME."""
+        policy = load(self.root)
+        digest = hashlib.sha256(canonical([action,policy]).encode()).hexdigest()
+        now = time.time()
+        with self.db() as db:
+            approved = db.execute("SELECT id FROM approvals WHERE agent=? AND digest=? AND status='approved' AND expires>? ORDER BY created LIMIT 1",(agent,digest,now)).fetchone()
+            if approved:
+                db.execute("UPDATE approvals SET status='used' WHERE id=?",(approved[0],))
+                result = {'action':'allow','approval_id':approved[0]}
+            else:
+                pending = db.execute("SELECT id FROM approvals WHERE agent=? AND digest=? AND status='pending' AND expires>?",(agent,digest,now)).fetchone()
+                aid = pending[0] if pending else uuid.uuid4().hex
+                if not pending:
+                    db.execute('INSERT INTO approvals(id,agent,digest,status,created,expires,actor,summary) VALUES(?,?,?,?,?,?,?,?)',(aid,agent,digest,'pending',now,now+600,None,str(summary)[:300]))
+                result = {'action':'approve','approval_id':aid,'new_approval':not bool(pending)}
+            self.event(db,agent,'gate.'+result['action'],{'digest':digest,'approval':result['approval_id']})
         return result
 
     def decide(self, aid, approve, actor):

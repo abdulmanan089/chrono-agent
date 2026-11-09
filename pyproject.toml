@@ -4,10 +4,31 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chrono-agent"
-version = "0.4.0rc1"
-description = "Local filesystem snapshots, savepoints, rollback, branches, advisory command scanning and a tamper-evident audit trail."
+version = "0.5.1"
+description = "Safety layer for AI coding agents: blocks dangerous commands and dangerous scripts, savepoints and rollback for project files, and a signed, tamper-evident audit trail."
 requires-python = ">=3.8"
 readme = "README.md"
+authors = [{ name = "Abdul Manan", email = "manandogar112@gmail.com" }]
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE", "LICENSE-COMMERCIAL.txt"]
+keywords = ["ai-agents", "mcp", "claude-code", "rollback", "savepoints", "audit-log", "security"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+    "Topic :: Software Development :: Version Control",
+]
+
+[project.urls]
+Homepage = "https://github.com/abdulmanan089/chrono-agent"
+Repository = "https://github.com/abdulmanan089/chrono-agent"
+Issues = "https://github.com/abdulmanan089/chrono-agent/issues"
+Changelog = "https://github.com/abdulmanan089/chrono-agent/blob/main/CHANGELOG.md"
 
 [project.scripts]
 chrono = "chrono_agent.cli:main"

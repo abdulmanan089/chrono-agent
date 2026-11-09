@@ -1,3 +1,5 @@
+# Chrono Agent  (c) 2026 Abdul Manan.  Source-available; see LICENSE.
+# Resale or offering as a hosted service is prohibited.  All rights reserved.
 """Authenticated local fleet pilot: OpenAI chat + Anthropic Messages adapters.
 Only routed non-streaming tool calls are inspected; this is not an OS monitor.
 """

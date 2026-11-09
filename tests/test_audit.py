@@ -8,8 +8,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _home  # noqa: F401  (temporary Chrono home for keys and witnesses)
+
 from chrono_agent import SnapshotStore
-from chrono_agent.audit import AuditLog, GENESIS, KEY_ENV, _digest
+from chrono_agent.audit import AuditLog, GENESIS, KEY_ENV, UNSIGNED_ENV, _digest
 from chrono_agent.cli import main
 
 
@@ -19,7 +23,7 @@ class AuditTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.old = Path.cwd()
         os.chdir(self.root)
-        for var in (KEY_ENV, 'CHRONO_MODEL', 'CHRONO_AGENT'):
+        for var in (KEY_ENV, UNSIGNED_ENV, 'CHRONO_MODEL', 'CHRONO_AGENT'):
             os.environ.pop(var, None)
         self.store = SnapshotStore(self.root)
         self.store.init()
@@ -28,7 +32,7 @@ class AuditTests(unittest.TestCase):
 
     def tearDown(self):
         os.chdir(self.old)
-        for var in (KEY_ENV, 'CHRONO_MODEL', 'CHRONO_AGENT'):
+        for var in (KEY_ENV, UNSIGNED_ENV, 'CHRONO_MODEL', 'CHRONO_AGENT'):
             os.environ.pop(var, None)
         self.tmp.cleanup()
 
@@ -158,6 +162,42 @@ class AuditTests(unittest.TestCase):
         self.assertIn('deleted or reordered', result['reason'])
 
     def test_rechained_forgery_is_caught_by_snapshot_anchor(self):
+        # Worst case for the anchors: signing switched off (0.4 behaviour) AND an
+        # attacker who can also delete the external witness in the Chrono home.
+        os.environ[UNSIGNED_ENV] = '1'
+        try:
+            project = self.root / 'unsigned'
+            project.mkdir()
+            os.chdir(project)
+            store = SnapshotStore(project)
+            store.init()
+            (project / 'app.py').write_text('x')
+            store.snapshot('first')
+            store.snapshot('second')
+            log = store.audit.path
+            forged, prev = [], GENESIS
+            for line in [x for x in log.read_text(encoding='utf-8').splitlines() if x.strip()]:
+                rec = json.loads(line)
+                if rec['seq'] == 1:
+                    rec['detail'] = 'innocent snapshot'
+                rec['prev'] = prev
+                rec['hash'] = _digest({k: v for k, v in rec.items() if k != 'hash'}, None)
+                prev = rec['hash']
+                forged.append(json.dumps(rec, sort_keys=True, ensure_ascii=True))
+            log.write_text(''.join(r + '\n' for r in forged), encoding='utf-8')
+            self.assertFalse(store.audit.verify()['ok'])          # the external witness notices
+            store.audit.witness_path.unlink()
+            self.assertTrue(store.audit.verify()['ok'])           # chain alone looks clean
+            problems = store.verify_audit()
+            self.assertTrue(problems)
+            self.assertIn('missing or edited', problems[0][1])
+            code, out = self.cli(['audit', '--verify'])
+            self.assertEqual(code, 1)
+            self.assertIn('anchors', out)
+        finally:
+            os.environ.pop(UNSIGNED_ENV, None)
+
+    def test_rechained_forgery_of_a_signed_log_is_caught_by_the_chain(self):
         self.store.snapshot('second')
         forged, prev = [], GENESIS
         for line in self.lines():
@@ -169,13 +209,10 @@ class AuditTests(unittest.TestCase):
             prev = rec['hash']
             forged.append(json.dumps(rec, sort_keys=True, ensure_ascii=True))
         self.write_lines(forged)
-        self.assertTrue(self.store.audit.verify()['ok'])   # chain alone looks clean
-        problems = self.store.verify_audit()
-        self.assertTrue(problems)
-        self.assertIn('missing or edited', problems[0][1])
-        code, out = self.cli(['audit', '--verify'])
-        self.assertEqual(code, 1)
-        self.assertIn('anchors', out)
+        result = self.store.audit.verify()
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['broken_at'], 1)
+        self.assertIn('signature', result['reason'])
 
     def test_signed_log_needs_the_key_to_verify(self):
         os.environ[KEY_ENV] = 'company-key'
@@ -199,12 +236,21 @@ class AuditTests(unittest.TestCase):
         self.store.restore()
         self.assertEqual(len(self.store.audit.read()), before + 1)
 
-    def test_missing_log_reports_nothing(self):
+    def test_missing_log_lists_nothing_but_fails_verification(self):
         (self.root / '.chrono' / 'audit.jsonl').unlink()
         code, out = self.cli(['audit'])
         self.assertEqual(code, 0)
         self.assertIn('no audit records yet', out)
-        result = self.store.audit.verify()
+        result = self.store.audit.verify()            # the external witness remembers the log
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['records'], 0)
+        self.assertIn('witness', result['reason'])
+
+    def test_a_project_without_any_log_verifies_empty(self):
+        fresh = self.root / 'fresh'
+        fresh.mkdir()
+        SnapshotStore(fresh).init()
+        result = AuditLog(fresh).verify()
         self.assertTrue(result['ok'])
         self.assertEqual(result['records'], 0)
 

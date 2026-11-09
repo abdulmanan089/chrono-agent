@@ -1,3 +1,5 @@
+# Chrono Agent  (c) 2026 Abdul Manan.  Source-available; see LICENSE.
+# Resale or offering as a hosted service is prohibited.  All rights reserved.
 """Fleet pilot CLI commands; separate from the illustrative website."""
 import json
 from .fleet import Fleet

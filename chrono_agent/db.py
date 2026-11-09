@@ -1,3 +1,5 @@
+# Chrono Agent  (c) 2026 Abdul Manan.  Source-available; see LICENSE.
+# Resale or offering as a hosted service is prohibited.  All rights reserved.
 """Database snapshot/restore, stored next to the file snapshots.
 
 Engines:

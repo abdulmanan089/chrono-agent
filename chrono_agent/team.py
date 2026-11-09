@@ -1,3 +1,5 @@
+# Chrono Agent  (c) 2026 Abdul Manan.  Source-available; see LICENSE.
+# Resale or offering as a hosted service is prohibited.  All rights reserved.
 """Local team roster: names and roles for one checked-out project.
 
 This is NOT a company account system. It is a plain file (.chrono/team.json)

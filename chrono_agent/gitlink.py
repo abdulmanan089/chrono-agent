@@ -1,16 +1,30 @@
+# Chrono Agent  (c) 2026 Abdul Manan.  Source-available; see LICENSE.
+# Resale or offering as a hosted service is prohibited.  All rights reserved.
 """Git integration: record the Git commit each snapshot belongs to, and
 optionally snapshot automatically after every git commit via a post-commit
 hook. Chrono never runs git commands that modify the repository."""
 import json
 import os
+import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 MARKER = "# chrono-agent post-commit hook"
 HOOK = """#!/bin/sh
 # chrono-agent post-commit hook — snapshot tracked project files after each commit.
-chrono snapshot -m "git commit $(git rev-parse --short HEAD)" >/dev/null 2>&1 || true
+%(run)s snapshot -m "git commit $(git rev-parse --short HEAD)" >/dev/null 2>&1 || echo "chrono: snapshot after commit failed (run: chrono snapshot)" >&2
 """
+
+
+def _hook_text():
+    """Hook body that calls the exact interpreter used to install it, so it does
+    not depend on a 'chrono' script being on PATH (virtualenvs, Windows)."""
+    run = "%s -m chrono_agent" % shlex.quote(Path(sys.executable).as_posix())
+    pkg_parent = Path(__file__).resolve().parent.parent
+    if not {"site-packages", "dist-packages"} & set(pkg_parent.parts):   # running from a source tree
+        run = "PYTHONPATH=%s %s" % (shlex.quote(pkg_parent.as_posix()), run)
+    return HOOK % {"run": run}
 
 
 def _git(root, *args):
@@ -61,7 +75,7 @@ def install_hook(root):
         raise RuntimeError("A post-commit hook already exists at %s; add this line to it manually:\n"
                            '  chrono snapshot -m "git commit $(git rev-parse --short HEAD)"' % p)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(HOOK, encoding="utf-8")
+    p.write_text(_hook_text(), encoding="utf-8")
     os.chmod(p, 0o755)
     return True
 

@@ -13,6 +13,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _home  # noqa: F401  (temporary Chrono home for keys and witnesses)
 
 import tempfile
 from chrono_agent.snapshot import SnapshotStore
@@ -105,14 +107,16 @@ class TeamTest(Base):
 class ApprovalFlowTest(Base):
     def test_run_approve_requires_named_approver(self):
         self.write_policy('approvers:\n  - manan\nrules:\n  - name: migrate\n    pattern: "touch"\n    score: 50\n    action: approve\n')
+        # 'touch' is not a Windows program, so a tiny cross-platform script stands in for it.
+        (self.root / "touch.py").write_text("import pathlib, sys\npathlib.Path(sys.argv[1]).write_text('x')\n")
         # Unknown approver -> exit 3, nothing executed
         with self.assertRaises(SystemExit) as cm:
-            cli_main(["run", "--approver", "stranger", "--", "touch", "x.txt"])
+            cli_main(["run", "--approver", "stranger", "--", sys.executable, "touch.py", "x.txt"])
         self.assertEqual(cm.exception.code, 3)
         self.assertFalse((self.root / "x.txt").exists())
         # Named approver -> executes and is recorded
         cli_main(["run", "--approver", "manan", "--approval-reason", "needed for release",
-                  "--", "touch", "x.txt"])
+                  "--", sys.executable, "touch.py", "x.txt"])
         self.assertTrue((self.root / "x.txt").exists())
         actions = [r["action"] for r in self.store.audit.read()]
         self.assertIn("run.approved", actions)
@@ -134,8 +138,8 @@ class GitTest(Base):
     def test_hook_and_head_tracking(self):
         try:
             self._git("init", "-q")
-        except subprocess.CalledProcessError:
-            self.skipTest("git init unavailable in this environment")
+        except (subprocess.CalledProcessError, OSError):      # git missing (common on Windows) or unusable
+            self.skipTest("git unavailable in this environment")
         self._git("config", "user.email", "t@t.t")
         self._git("config", "user.name", "t")
         (self.root / "a.txt").write_text("one")
@@ -218,7 +222,7 @@ class McpTest(unittest.TestCase):
         self.assertEqual(r["result"]["serverInfo"]["name"], "chrono-agent")
         names = [t["name"] for t in self.rpc("tools/list")["result"]["tools"]]
         self.assertEqual(sorted(names), ["chrono_audit_verify", "chrono_log",
-                                         "chrono_rollback", "chrono_scan",
+                                         "chrono_rollback", "chrono_run", "chrono_scan",
                                          "chrono_snapshot", "chrono_status"])
 
     def test_scan_snapshot_status_rollback_flow(self):
