@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chrono-agent"
-version = "0.5.1"
+version = "0.5.0"
 description = "Safety layer for AI coding agents: blocks dangerous commands and dangerous scripts, savepoints and rollback for project files, and a signed, tamper-evident audit trail."
 requires-python = ">=3.8"
 readme = "README.md"

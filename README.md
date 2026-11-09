@@ -58,7 +58,7 @@ It is a dependency-free Python package (3.8+) with a CLI (`chrono`), an MCP serv
 python -m pip install --upgrade chrono-agent
 python -m chrono_agent --version
 ```
-Expected: `chrono-agent 0.5.1`. If `chrono` is not on PATH, every example also works as `python -m chrono_agent ...`. Python 3.8 or newer is required.
+Expected: `chrono-agent 0.5.0`. If `chrono` is not on PATH, every example also works as `python -m chrono_agent ...`. Python 3.8 or newer is required.
 
 Upgrading from 0.4.x keeps your `.chrono` folders. Old audit records keep verifying, and new records are signed from the first action after the upgrade (see *Audit trail*).
 
