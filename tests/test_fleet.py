@@ -19,7 +19,7 @@ from chrono_agent.fleet_gateway import Gateway
 
 class FleetTests(unittest.TestCase):
     def setUp(self):
-        self.tmp=tempfile.TemporaryDirectory();self.base=Path(self.tmp.name)
+        self.tmp=tempfile.TemporaryDirectory();self.base=Path(self.tmp.name).resolve()  # macOS: /var is a symlink to /private/var
         self.root=self.base/'control';self.root.mkdir();s=SnapshotStore(self.root);s.init();s.snapshot('init')
         self.f=Fleet(self.root)
     def tearDown(self):self.tmp.cleanup()

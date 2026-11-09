@@ -12,12 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, windows-latest, macos-latest]
-        python: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-        exclude:
-          - os: macos-latest      # Apple-silicon runners have no 3.8 / 3.9 builds
-            python: "3.8"
-          - os: macos-latest
-            python: "3.9"
+        python: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
