@@ -5,4 +5,4 @@ from .transaction import Transaction
 from .interceptor import assess
 from .audit import AuditLog
 __all__ = ["SnapshotStore", "Transaction", "assess", "AuditLog"]
-__version__ = "0.5.1"
+__version__ = "0.5.0"

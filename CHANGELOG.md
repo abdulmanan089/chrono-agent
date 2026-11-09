@@ -1,17 +1,5 @@
 # Changelog
 
-## 0.5.1 — licensing and packaging
-- License changed from MIT to a source-available license (`LICENSE`): free to install and use, including inside
-  a company; no resale, hosted service or redistribution of modified versions without a commercial license
-  (`LICENSE-COMMERCIAL.txt`). Copyright (c) 2026 Abdul Manan.
-- Copyright headers in every source file; package metadata names the author and the license
-  (`LicenseRef-Proprietary`).
-- Published on PyPI: `pip install --upgrade chrono-agent`. README updated with badges, measured results and
-  MCP setup for Claude and Codex.
-- `docs/` now holds the release report and the audit report; `.gitignore` keeps keys, `.chrono`, `.pypirc` and
-  build output out of the repository.
-- No code changes to the gate, savepoints, rollback or audit log since 0.5.0.
-
 ## 0.5.0 — fixes for the independent audit of 0.4.1rc2
 
 An independent hands-on audit of 0.4.1rc2 on Windows 11 found the gate, rollback and audit chain working, plus
@@ -82,6 +70,20 @@ six gaps (H1-H6). All six are addressed here. `docs/REMEDIATION.md` maps each fi
 - Commands that run a script with a recursive delete inside (`python clean.py` with `shutil.rmtree`, `make clean`
   with `rm -rf build`) are now blocked on enforcing paths. Allow routine ones with the policy `allow:` list.
 - `chrono_run` returns `"savepoint": null` plus `savepoint_skipped` for read-only commands.
+
+### Licensing and packaging
+- License changed from MIT to a source-available license (`LICENSE`): free to install and use, including inside
+  a company; no resale, hosted service or redistribution of modified versions without a commercial license
+  (`LICENSE-COMMERCIAL.txt`). Copyright (c) 2026 Abdul Manan.
+- Copyright headers in every source file; package metadata names the author and the license
+  (`LicenseRef-Proprietary`).
+- Published on PyPI: `pip install --upgrade chrono-agent`. README updated with badges, measured results and
+  MCP setup for Claude and Codex.
+- `docs/` holds the release report and the audit report; `.gitignore` keeps keys, `.chrono`, `.pypirc` and
+  build output out of the repository.
+- The PyPI package was built before the copyright holder's name and contact were filled into `LICENSE`,
+  `LICENSE-COMMERCIAL.txt` and the source-file headers. The repository and the `v0.5.0` tag have the completed
+  text; the code is the same.
 
 ## 0.4.1rc2-winfix
 - Scanner: blocks shadow-copy/backup/recovery wiping (vssadmin, wbadmin, bcdedit) at 95.
