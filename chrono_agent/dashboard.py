@@ -1,3 +1,5 @@
+# Chrono Agent  (c) 2026 Abdul Manan.  Source-available; see LICENSE.
+# Resale or offering as a hosted service is prohibited.  All rights reserved.
 """Local dashboard: render the audit trail, savepoints and branches of one
 project as a self-contained HTML report (no server, no network, no tracking).
 

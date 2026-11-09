@@ -1,0 +1,4 @@
+include LICENSE LICENSE-COMMERCIAL.txt README.md CHANGELOG.md SECURITY.md
+graft tests
+graft examples
+global-exclude __pycache__ *.py[cod]

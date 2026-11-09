@@ -26,10 +26,12 @@ After that, anyone can run:
 
 ## Before each release
 
-- Bump `version` in `pyproject.toml` and `chrono_agent/__init__.py` together.
+- Bump `version` in `pyproject.toml` and `chrono_agent/__init__.py` together (0.5.0 now).
 - Run the full test suite: `python -m unittest discover -s tests -v`.
-- Smoke-test the installed CLI in a clean virtual environment.
-- Update README.md / VERIFICATION.md if behavior changed.
+- Run `python benchmarks/redteam.py` and update `RED_TEAM_REPORT.md` if the totals changed.
+- Smoke-test the installed CLI in a clean virtual environment, including `chrono guard install` and `chrono guard status`.
+- Update README.md / CHANGELOG.md / VERIFICATION.md if behaviour changed.
+- Do not describe the package as a sandbox or as "100% secure". `SECURITY.md` says what it does and does not do.
 
 ## Test on TestPyPI first (optional but recommended)
 

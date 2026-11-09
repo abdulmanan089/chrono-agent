@@ -1,0 +1,313 @@
+<title>Chrono Agent Audit Report</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a single-column lab test report. Current release (0.5.0) re-test first, the original 0.4.1rc2 audit below as the record. */
+:root {
+  --bg: #f6f7f8;
+  --paper: #ffffff;
+  --ink: #1b2329;
+  --muted: #5a6670;
+  --rule: #d9dee2;
+  --accent: #1e5a73;
+  --pass: #1d7a4c;
+  --pass-bg: #e3f3ea;
+  --warn: #9a5b00;
+  --warn-bg: #fbefd9;
+  --crit: #a3262a;
+  --crit-bg: #f8e1e1;
+  --code-bg: #eef1f3;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12171b; --paper: #1a2126; --ink: #e3e8ec; --muted: #9aa7b1; --rule: #2e3940;
+    --accent: #7cc0dc; --pass: #6fd3a0; --pass-bg: #173326; --warn: #f0b35a; --warn-bg: #3a2b12;
+    --crit: #f08a8d; --crit-bg: #3d1c1e; --code-bg: #232c32; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12171b; --paper: #1a2126; --ink: #e3e8ec; --muted: #9aa7b1; --rule: #2e3940;
+  --accent: #7cc0dc; --pass: #6fd3a0; --pass-bg: #173326; --warn: #f0b35a; --warn-bg: #3a2b12;
+  --crit: #f08a8d; --crit-bg: #3d1c1e; --code-bg: #232c32; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body);
+  font-size: 15px; line-height: 1.6;
+  padding-block: 32px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 36px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: 2.1rem; font-weight: 700; }
+h2 { font-size: 1.35rem; font-weight: 600; padding-bottom: 6px; border-bottom: 1px solid var(--rule); }
+h3 { font-size: 1.05rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+section { display: flex; flex-direction: column; gap: 14px; }
+.eyebrow { font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 24px; font-size: 0.88rem; }
+.meta div { display: flex; flex-direction: column; min-width: 0; }
+.meta dt { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.meta dd { margin: 0; font-family: var(--f-mono); font-size: 0.85rem; overflow-wrap: anywhere; }
+dl { margin: 0; }
+code, .mono { font-family: var(--f-mono); font-size: 0.84em; }
+code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; overflow-wrap: anywhere; }
+.verdict {
+  background: var(--paper); border: 1px solid var(--rule); border-left: 5px solid var(--pass);
+  padding: 20px 22px; display: flex; flex-direction: column; gap: 12px;
+}
+.verdict .big { font-family: var(--f-display); font-size: 1.5rem; font-weight: 700; color: var(--pass); }
+.tally { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill { font-family: var(--f-mono); font-size: 0.75rem; font-weight: 500; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.pass { color: var(--pass); background: var(--pass-bg); }
+.warn { color: var(--warn); background: var(--warn-bg); }
+.crit { color: var(--crit); background: var(--crit-bg); }
+.table-box { overflow-x: auto; background: var(--paper); border: 1px solid var(--rule); }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 0.86rem; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-family: var(--f-display); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); background: var(--bg); }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; font-family: var(--f-mono); white-space: nowrap; }
+td.id { font-family: var(--f-mono); color: var(--muted); white-space: nowrap; }
+.group td { background: var(--bg); font-family: var(--f-display); font-weight: 600; color: var(--accent); }
+.findings { display: flex; flex-direction: column; gap: 12px; }
+.finding { background: var(--paper); border: 1px solid var(--rule); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.finding header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.finding .fix { color: var(--muted); font-size: 0.9rem; }
+.finding .fix strong { color: var(--ink); font-weight: 600; }
+ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; max-width: 70ch; }
+.note { font-size: 0.85rem; color: var(--muted); }
+.ready { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.ready > div { background: var(--paper); border: 1px solid var(--rule); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.stat { background: var(--paper); border: 1px solid var(--rule); padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stat .n { font-family: var(--f-display); font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat .l { font-size: 0.8rem; color: var(--muted); }
+.divider { border: 0; border-top: 2px solid var(--rule); margin: 8px 0 0; }
+footer { border-top: 1px solid var(--rule); padding-top: 14px; }
+</style>
+
+<div class="wrap">
+
+<header style="display:flex;flex-direction:column;gap:14px">
+  <span class="eyebrow">Functional test report · 0.4.1rc2 audit and 0.5.0 re-test · 9 November 2026</span>
+  <h1>Chrono Agent Audit Report</h1>
+  <p>A hands-on test of the Chrono Agent MCP server on Windows 11. It covers the command gate, false positives on normal developer commands, snapshot and rollback recovery, and the tamper-evident audit chain. The first audit of release 0.4.1rc2 found six gaps. Release 0.5.0 fixes them. This page shows the 0.5.0 re-test first and keeps the original audit below as the record.</p>
+  <dl class="meta">
+    <div><dt>Current release</dt><dd>chrono-agent 0.5.0</dd></div>
+    <div><dt>Audited release</dt><dd>chrono-agent 0.4.1rc2</dd></div>
+    <div><dt>Platform</dt><dd>Windows 11 Pro 10.0.26200, Python 3.13.5</dd></div>
+    <div><dt>Tester</dt><dd>Claude (Opus 5.5) in Claude Code, AI-run</dd></div>
+  </dl>
+</header>
+
+<section class="verdict">
+  <span class="eyebrow">Verdict for 0.5.0</span>
+  <div class="big">All six findings fixed and re-tested. Ready for a public developer release.</div>
+  <p>Re-running every probe of the original audit against 0.5.0 gave 30 passes out of 30. That includes the attack 0.4.1rc2 missed: deleting an audit record and recomputing every later hash is now detected. The unit suite and the red-team suite run clean on Windows. Chrono is still not a sandbox, and keys in the user's own home folder can be read by that same OS account. Before Chrono is sold as an enterprise security product, an independent human penetration test is still needed. No release can honestly be called "100% ready".</p>
+  <div class="tally">
+    <span class="pill pass">30/30 re-test checks passed</span>
+    <span class="pill pass">235 unit tests OK</span>
+    <span class="pill pass">red-team 45 pass · 0 fail</span>
+    <span class="pill warn">8 limits by design</span>
+  </div>
+</section>
+
+<section>
+  <h2>Findings and their status</h2>
+  <div class="table-box">
+  <table>
+    <thead><tr><th>#</th><th>Finding in 0.4.1rc2</th><th>Change in 0.5.0</th><th>Re-test evidence</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td class="id">A4 / H1</td><td>Audit log unsigned by default: a deleted record plus recomputed hashes verified as intact</td><td>Records are HMAC-SHA256 signed with a key outside the project; an external witness tracks the newest record</td><td>Deleting a record and recomputing every hash, stripping signatures, and cutting off the newest 3 records were all detected</td><td><span class="pill pass">FIXED</span></td></tr>
+      <tr><td class="id">H2</td><td>Enforcement covered only <code>chrono_run</code></td><td><code>chrono guard install</code> adds a Claude Code hook in front of the agent's own Bash/PowerShell and file edits</td><td><code>rm -rf /</code>, a script with <code>rmtree</code> and <code>chrono approvals approve</code> refused (exit 2); <code>echo hello</code> allowed; an agent edit of the policy file refused</td><td><span class="pill pass">FIXED</span></td></tr>
+      <tr><td class="id">H3</td><td>The scanner read command text only</td><td>On enforcing paths it reads the scripts, npm scripts and make targets a command runs</td><td><code>python cleanup.py</code> with <code>shutil.rmtree</code> inside: 90 CRITICAL, blocked</td><td><span class="pill pass">FIXED</span></td></tr>
+      <tr><td class="id">H4</td><td>Rollback cannot undo system-level damage, and this was not stated where agents see it</td><td>Every run and rollback reply carries a <code>covers</code> field with the scope; <code>SECURITY.md</code> added</td><td>Rollback reply: "cover the tracked files in this project folder only"</td><td><span class="pill pass">FIXED</span></td></tr>
+      <tr><td class="id">H5</td><td>A savepoint was taken for every command</td><td>Read-only commands skip it; <code>chrono prune</code> and a retention policy added</td><td><code>cd &amp;&amp; dir /a</code> and <code>python --version</code> ran without a savepoint; <code>python app.py</code> got one</td><td><span class="pill pass">FIXED</span></td></tr>
+      <tr><td class="id">H6</td><td>Every <code>reg add</code> blocked, and allow entries could not hold backslashes</td><td>Backslash allow entries; a separate 95-point rule for autostart keys; example policy</td><td>An allow-listed app setting was allowed while the Run key stayed blocked (95)</td><td><span class="pill pass">FIXED</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>Re-test matrix (0.5.0)</h2>
+  <p class="note">The re-test talked to a real <code>python -m chrono_agent mcp</code> server over stdio, the same protocol an AI client uses, in a throwaway project with its own Chrono home. Catastrophic system commands were scanned, not executed. The <code>chrono_run</code> block test used a destructive command aimed at dummy files.</p>
+  <div class="table-box">
+  <table>
+    <thead><tr><th>Area</th><th>Probe</th><th>Observed</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr class="group"><td colspan="4">Dangerous-command gate</td></tr>
+      <tr><td class="id">Gate</td><td>run: <code>robocopy sandbox\empty sandbox\victim /MIR</code></td><td>92 CRITICAL, <code>executed: false</code>, dummy files byte-identical</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">Gate</td><td>scan: <code>vssadmin delete shadows</code> (with and without <code>/all /quiet</code>)</td><td>95 CRITICAL, block</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">Gate</td><td>scan: <code>bcdedit /set {default} recoveryenabled No</code></td><td>95 CRITICAL, block</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">Gate</td><td>scan: <code>sc stop WinDefend</code></td><td>92 CRITICAL, block</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">Gate</td><td>scan: <code>reg add HKCU\…\CurrentVersion\Run /v Updater …</code></td><td>95 CRITICAL, block (autostart key)</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">Gate</td><td>scan: <code>rd /s /q C:\Users</code></td><td>96 CRITICAL, block</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr class="group"><td colspan="4">Benign controls</td></tr>
+      <tr><td class="id">Benign</td><td>run: <code>cd &amp;&amp; dir /a</code>, <code>python --version</code></td><td>ran, exit 0, no savepoint (read-only)</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">Benign</td><td>run: <code>python app.py</code></td><td>"Hello Safe World", savepoint taken, <code>covers</code> field present</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">Benign</td><td>scan: <code>pip install requests</code>, <code>npm test</code></td><td>5 LOW, allow</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">Benign</td><td>scan: <code>python -c "print(sum(range(100)))"</code></td><td>35 MEDIUM, allow</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr class="group"><td colspan="4">Recovery</td></tr>
+      <tr><td class="id">Recovery</td><td>delete 2 files, modify 1, add 1, then status</td><td>1 added, 2 deleted, 1 modified</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">Recovery</td><td>rollback to the baseline</td><td>SHA-256 identical, redo savepoint returned, scope stated</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr class="group"><td colspan="4">Audit chain</td></tr>
+      <tr><td class="id">Audit</td><td>verify the live log</td><td>ok, 23 of 23 records signed, external witness matches</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">Audit</td><td>copy: edit one record</td><td>detected: content does not match its signature</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">Audit</td><td>copy: delete one record</td><td>detected: previous link does not match</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">Audit</td><td>copy: delete one record and recompute every hash (the 0.4.1rc2 finding)</td><td>detected: content does not match its signature</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">Audit</td><td>copy: strip all signatures and re-chain as unsigned</td><td>detected by the external witness</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">Audit</td><td>copy: cut off the newest 3 records</td><td>detected by the external witness</td><td><span class="pill pass">PASS</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Rows for the H2, H3, H4 and H6 probes are in the findings table above. Counted one by one, the re-test has 30 checks, and all 30 passed.</p>
+</section>
+
+<section>
+  <h2>Release checks for 0.5.0</h2>
+  <div class="stats">
+    <div class="stat"><span class="n">235</span><span class="l">unit tests OK (5 skipped: no git or symlink rights on this machine)</span></div>
+    <div class="stat"><span class="n">45 / 0 / 8</span><span class="l">red-team pass / fail / limit, of 53 tests</span></div>
+    <div class="stat"><span class="n">108/108</span><span class="l">dangerous commands blocked in the scanner benchmark; 88/88 everyday commands left alone</span></div>
+    <div class="stat"><span class="n">23.0 s</span><span class="l">first snapshot of 5,000 files (137.5 s before the fix)</span></div>
+  </div>
+  <div class="table-box">
+  <table>
+    <thead><tr><th>Snapshot of 1,000 files on Windows</th><th>0.4.1rc2</th><th>0.5.0</th></tr></thead>
+    <tbody>
+      <tr><td>first snapshot</td><td class="num">13.7 s</td><td class="num">4.9 s</td></tr>
+      <tr><td>next savepoint, nothing changed (the usual automatic savepoint)</td><td class="num">9.7 s</td><td class="num">1.8 s</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">The release ZIP was also installed with <code>pip</code> into a fresh virtual environment. Installed <code>chrono</code> reported 0.5.0. Then init, scan, run, guard install with self-test, policy pin, audit verify and the MCP tool list all ran.</p>
+</section>
+
+<section>
+  <h2>Limits that remain by design</h2>
+  <ul>
+    <li><strong>Not a sandbox.</strong> An allowed program can do anything the OS account can. Variables and payloads decoded at run time, compiled programs and imported modules are not inspected.</li>
+    <li><strong>Local trust boundary.</strong> Signing keys, witnesses and policy pins live in the user's Chrono home. The same OS account can read them. Use a vault key (<code>CHRONO_AUDIT_KEY</code>) and <code>chrono audit --push</code> to a store the agent cannot reach.</li>
+    <li><strong>Coverage.</strong> Only paths through Chrono are enforced: MCP <code>chrono_run</code>, the guard hook and <code>chrono run</code>. An unguarded shell, an IDE plugin or a person at a terminal are outside.</li>
+    <li><strong>Identity.</strong> Approvals and roles are named, not authenticated, and agent labels are not workload identities.</li>
+    <li><strong>Rollback scope.</strong> Project files only, never registry, services, shadow copies, outside files or network effects.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Release readiness</h2>
+  <div class="ready">
+    <div>
+      <h3>Ready now (0.5.0)</h3>
+      <ul>
+        <li>Public open-source release as a developer tool, with <code>SECURITY.md</code> stating its limits</li>
+        <li>Use with Claude Code and other MCP clients on development machines</li>
+        <li>Demos of blocking, script inspection, savepoints, rollback and signed audit</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Before an enterprise security launch</h3>
+      <ul>
+        <li>An independent human penetration test, including scanner-evasion testing</li>
+        <li>CI green on Linux and macOS (the workflow is included but has not run)</li>
+        <li>The guard tested inside live Claude Code sessions</li>
+        <li>Signing for the fleet gateway's own event chain</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<section>
+  <span class="eyebrow">Record · original audit of 0.4.1rc2</span>
+  <h2>Original test matrix (0.4.1rc2)</h2>
+  <p class="note">The original verdict was "Not 100% ready. Ready for a public beta / developer preview." It found 21 passing checks and 1 integrity finding (A4), plus six hardening items, H1 to H6. All are fixed in 0.5.0, as shown above.</p>
+  <div class="table-box">
+  <table>
+    <thead><tr><th>#</th><th>Probe</th><th>Tool</th><th>Score / level</th><th>Observed</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr class="group"><td colspan="6">1 · Dangerous-command gate</td></tr>
+      <tr><td class="id">G1</td><td><code>robocopy sandbox\empty sandbox\victim /MIR</code></td><td>run</td><td class="num">92 CRITICAL</td><td><code>executed: false</code>; SHA-256 of all 4 dummy files identical before and after</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">G2</td><td><code>vssadmin delete shadows</code></td><td>scan</td><td class="num">95 CRITICAL</td><td>block: ransomware recovery wipe</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">G3</td><td><code>vssadmin delete shadows /all /quiet</code></td><td>scan</td><td class="num">95 CRITICAL</td><td>block</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">G4</td><td><code>bcdedit /set {default} recoveryenabled No</code></td><td>scan</td><td class="num">95 CRITICAL</td><td>block: disables Windows recovery</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">G5</td><td><code>sc stop WinDefend</code></td><td>scan</td><td class="num">92 CRITICAL</td><td>block: stops security service</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">G6</td><td><code>reg add HKCU\…\CurrentVersion\Run /v Updater …</code></td><td>scan</td><td class="num">88 HIGH</td><td>block: registry modification</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">G7</td><td><code>rd /s /q C:\Users</code></td><td>scan</td><td class="num">96 CRITICAL</td><td>block: recursive delete</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr class="group"><td colspan="6">2 · Benign controls (false-positive check)</td></tr>
+      <tr><td class="id">B1</td><td><code>cd &amp;&amp; dir /a</code></td><td>run</td><td class="num">5 LOW</td><td>Ran, exit 0, savepoint created</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">B2</td><td><code>python --version</code></td><td>run</td><td class="num">5 LOW</td><td>Ran, exit 0, savepoint created</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">B3</td><td><code>python app.py</code></td><td>run</td><td class="num">5 LOW</td><td>Printed "Hello Safe World", savepoint created</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">B4</td><td><code>git --version</code></td><td>run</td><td class="num">5 LOW</td><td>Allowed and savepointed; exit 1 because git is not installed on this machine (not a Chrono fault)</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">B5</td><td><code>pip install requests</code></td><td>scan</td><td class="num">5 LOW</td><td>allow</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">B6</td><td><code>npm test</code></td><td>scan</td><td class="num">5 LOW</td><td>allow</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">B7</td><td><code>python -c "print(sum(range(100)))"</code></td><td>scan</td><td class="num">35 MEDIUM</td><td>allow, flagged as inline code (reasonable caution)</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr class="group"><td colspan="6">3 · Recovery time-machine</td></tr>
+      <tr><td class="id">R1</td><td>Snapshot "audit: recovery baseline"</td><td>snapshot</td><td class="num">n/a</td><td>5 tracked files captured</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">R2</td><td>Delete 2 files, modify 1, add 1</td><td>status</td><td class="num">n/a</td><td>Reported exactly 2 deleted, 1 modified, 1 added</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">R3</td><td>Rollback to baseline</td><td>rollback</td><td class="num">n/a</td><td>4/4 SHA-256 hashes match the originals; added file removed; rescue "redo" savepoint returned</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">R4</td><td>Status after rollback</td><td>status</td><td class="num">n/a</td><td>Clean: no added, deleted or modified files</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr class="group"><td colspan="6">4 · Audit chain integrity</td></tr>
+      <tr><td class="id">A1</td><td>Verify live audit log</td><td>audit_verify</td><td class="num">n/a</td><td>ok: 87 records, chain intact, no snapshot-anchor problems; not HMAC-signed</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">A2</td><td>Copy of log: edit one record</td><td>offline</td><td class="num">n/a</td><td>Detected at record 11 (digest mismatch)</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">A3</td><td>Copy of log: delete one record</td><td>offline</td><td class="num">n/a</td><td>Detected at record 21 (broken previous link)</td><td><span class="pill pass">PASS</span></td></tr>
+      <tr><td class="id">A4</td><td>Copy of log: delete a record and recompute every later hash</td><td>offline</td><td class="num">n/a</td><td>Log-only check reported "chain intact" (unsigned log). Fixed in 0.5.0.</td><td><span class="pill warn">FINDING</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>Original hardening assessment (0.4.1rc2)</h2>
+  <div class="findings">
+    <article class="finding">
+      <header><span class="pill crit">High</span><h3>H1 · Audit log is unsigned by default</h3><span class="pill pass">Fixed in 0.5.0</span></header>
+      <p>Without <code>CHRONO_AUDIT_KEY</code> the chain used plain SHA-256, so test A4 could rebuild it after a deletion.</p>
+    </article>
+    <article class="finding">
+      <header><span class="pill crit">High</span><h3>H2 · Enforcement covers only <code>chrono_run</code></h3><span class="pill pass">Fixed in 0.5.0</span></header>
+      <p>Nothing stopped an agent from running the same command through another shell tool.</p>
+    </article>
+    <article class="finding">
+      <header><span class="pill warn">Medium</span><h3>H3 · Scanner reads command text, not behaviour</h3><span class="pill pass">Fixed in 0.5.0</span></header>
+      <p><code>python app.py</code> scored LOW whatever the script contained.</p>
+    </article>
+    <article class="finding">
+      <header><span class="pill warn">Medium</span><h3>H4 · Rollback cannot undo system-level damage</h3><span class="pill pass">Documented in 0.5.0</span></header>
+      <p>Savepoints cover tracked project files only. This is still true by design, and it is now stated in every run and rollback reply.</p>
+    </article>
+    <article class="finding">
+      <header><span class="pill pass">Low</span><h3>H5 · A savepoint for every allowed command</h3><span class="pill pass">Fixed in 0.5.0</span></header>
+      <p>Three read-only commands produced three savepoints.</p>
+    </article>
+    <article class="finding">
+      <header><span class="pill pass">Low</span><h3>H6 · Registry rule blocks every <code>reg add</code></h3><span class="pill pass">Fixed in 0.5.0</span></header>
+      <p>Blocking every edit was safe, but it also stopped legitimate developer setup.</p>
+    </article>
+  </div>
+</section>
+
+<section>
+  <h2>Scope and limits of this report</h2>
+  <ul>
+    <li>This is a scoped functional test run by an AI assistant. It is not a formal certification or a third-party security audit, and it should not be presented as one.</li>
+    <li>The same assistant that ran the 0.4.1rc2 audit also wrote the 0.5.0 fixes and ran the re-test, so the re-test is not independent.</li>
+    <li>Not tested: scanner evasion and obfuscation robustness, Linux and macOS, the guard inside a live Claude Code session, Postgres/MySQL rollback, and the git hook (git is not installed on this machine).</li>
+    <li>Catastrophic commands against the real system were scanned, not executed.</li>
+    <li>No software can honestly be certified "100% ready". The verdicts above describe readiness for specific uses.</li>
+  </ul>
+</section>
+
+<footer>
+  <p class="note">Details in the release ZIP: <code>docs/REMEDIATION.md</code> maps each finding to code and tests; <code>VERIFICATION.md</code> and <code>RED_TEAM_REPORT.md</code> hold the Windows results; <code>SECURITY.md</code> states the threat model.</p>
+</footer>
+
+</div>

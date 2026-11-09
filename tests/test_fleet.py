@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import tempfile
 import threading
 import unittest
@@ -9,6 +10,9 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _home  # noqa: F401  (temporary Chrono home for keys and witnesses)
 from chrono_agent import SnapshotStore
 from chrono_agent.fleet import Fleet
 from chrono_agent.fleet_gateway import Gateway

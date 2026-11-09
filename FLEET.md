@@ -1,4 +1,4 @@
-# Fleet pilot — 0.4.0rc1
+# Fleet pilot (introduced in 0.4.0rc1, shipped unchanged in 0.5.0)
 
 Five additions: model gateway, dynamic fleet registry, separate agent recovery lanes,
 async expiring approvals + webhook notices, and a live browser fleet report.
@@ -7,7 +7,7 @@ This is a **local pilot**, not an enterprise-ready universal agent controller.
 ## Install from the release ZIP (Windows CMD)
 
 ```cmd
-python -m pip install --user --upgrade chrono-agent-0.4.0rc1.zip
+python -m pip install --upgrade chrono-agent
 python -m chrono_agent --version
 ```
 
@@ -125,4 +125,6 @@ are not provided. Keep independent backups and test all actual integrations befo
 Fleet state uses SQLite transactions; fleet audit is a separate local hash chain in
 `.chrono/fleet.sqlite`. `chrono fleet list` verifies it. It detects edits but is not signed,
 immutable or independently anchored; a local administrator can rewrite/delete it.
-Existing per-workspace audit files remain separate and retain their existing limitations.
+The per-workspace audit logs (`.chrono/audit.jsonl`) are separate. Since 0.5.0 they are
+HMAC-signed with a key outside the project and have an external witness (see README).
+The fleet chain itself is not signed yet.

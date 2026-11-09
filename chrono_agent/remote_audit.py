@@ -1,3 +1,5 @@
+# Chrono Agent  (c) 2026 Abdul Manan.  Source-available; see LICENSE.
+# Resale or offering as a hosted service is prohibited.  All rights reserved.
 """Push the local audit chain to a remote append-only store over HTTP(S).
 
 The local log alone cannot prove that its newest records were not deleted —

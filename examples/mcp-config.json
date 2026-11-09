@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "chrono": {
+      "command": "python",
+      "args": ["-m", "chrono_agent", "mcp"],
+      "env": {
+        "CHRONO_AGENT": "claude-desktop"
+      }
+    }
+  }
+}

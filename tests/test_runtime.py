@@ -11,6 +11,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _home  # noqa: F401  (temporary Chrono home for keys and witnesses)
+
 from chrono_agent import SnapshotStore, Transaction, assess
 from chrono_agent.cli import main
 
@@ -215,7 +219,7 @@ class RuntimeTests(unittest.TestCase):
                 self.store.restore(m['id'])
         self.assertEqual(Path('app.py').read_text(), 'print("VERSION_1")\n')
 
-    def test_symlink_rejected_without_external_write(self):
+    def test_symlink_never_followed_and_never_written_through(self):
         outside = self.root.parent / (self.root.name + '-outside')
         outside.write_text('external')
         try:
@@ -223,10 +227,23 @@ class RuntimeTests(unittest.TestCase):
                 Path('link').symlink_to(outside)
             except OSError:
                 self.skipTest('Symlink privilege unavailable')
+            # 1. A symlink is skipped (reported), not followed, not stored, not touched.
+            meta = self.store.snapshot()
+            self.assertNotIn('link', meta['files'])
+            self.assertEqual(self.store.skipped, ['link (symlink)'])
+            self.store.restore()
+            self.assertTrue(Path('link').is_symlink())
+            self.assertEqual(outside.read_text(), 'external')
+            # 2. Strict mode still refuses.
+            from chrono_agent.snapshot import _files
             with self.assertRaises(RuntimeError):
-                self.store.snapshot()
+                list(_files(self.root))
+            # 3. A tracked file later replaced by a symlink is never written through.
+            Path('link').unlink(); Path('link').write_text('original')
+            sid = self.store.snapshot()['id']
+            Path('link').unlink(); Path('link').symlink_to(outside)
             with self.assertRaises(RuntimeError):
-                self.store.restore()
+                self.store.restore(sid)
             self.assertEqual(outside.read_text(), 'external')
         finally:
             outside.unlink()
@@ -371,9 +388,20 @@ class RuntimeTests(unittest.TestCase):
 
     def test_snapshot_detects_external_mutation(self):
         head = self.store.get()['id']
-        with patch.object(self.store, 'current_manifest', return_value={}):
+        with patch.object(self.store, '_changed_during', return_value=True):
             with self.assertRaisesRegex(RuntimeError, 'Files changed'):
                 self.store.snapshot()
+        self.assertEqual(self.store.get()['id'], head)
+
+    def test_snapshot_notices_a_file_rewritten_while_it_reads(self):
+        real = SnapshotStore._changed_during
+        def rewrite_then_check(store, seen):
+            Path('app.py').write_text('rewritten by another writer, longer than before')
+            return real(store, seen)
+        head = self.store.get()['id']
+        with patch.object(SnapshotStore, '_changed_during', rewrite_then_check), \
+                self.assertRaisesRegex(RuntimeError, 'Files changed'):
+            self.store._snapshot_once('racy')
         self.assertEqual(self.store.get()['id'], head)
 
     def test_restore_does_not_replace_ignored_data(self):
@@ -390,7 +418,9 @@ class RuntimeTests(unittest.TestCase):
         try:
             self.store.dir.symlink_to(redirected, target_is_directory=True)
         except OSError:
-            redirected.rename(self.store.dir)
+            # Windows: a virus scanner may still hold the just-renamed folder for a moment.
+            from chrono_agent.snapshot import _retry
+            _retry(redirected.rename, self.store.dir, attempts=10)
             self.skipTest('Symlink privilege unavailable')
         with self.assertRaisesRegex(RuntimeError, 'Unsafe symlink'):
             self.store.init()

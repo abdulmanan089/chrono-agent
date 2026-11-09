@@ -1,10 +1,13 @@
+# Chrono Agent  (c) 2026 Abdul Manan.  Source-available; see LICENSE.
+# Resale or offering as a hosted service is prohibited.  All rights reserved.
 import argparse, difflib, json, os, shlex, subprocess, sys, tempfile, time
 from datetime import datetime
 from pathlib import Path
 from .snapshot import SnapshotStore
-from .audit import AuditLog
+from .audit import AuditLog, KeyRing, chrono_home
 from .interceptor import assess
-from .policy import load as load_policy, evaluate, PolicyError, FILE_NAME as POLICY_FILE
+from .policy import (load as load_policy, evaluate, gate, note_policy_change, pin as pin_policy,
+                     unpin as unpin_policy, pin_state, PolicyError, FILE_NAME as POLICY_FILE)
 from .team import Team
 from . import gitlink, db as dbmod, remote_audit, dashboard as dashmod
 from . import __version__
@@ -60,8 +63,13 @@ def cmd_init(a):
     print(G("✓ chrono initialised") + f" in {s.root}"); print(f"  {B(m['id'])}  {len(m['files'])} files  ({m['ms']} ms)")
 
 def cmd_snapshot(a):
-    m = store().snapshot(a.message or "manual snapshot")
+    s = store()
+    m = s.snapshot(a.message or "manual snapshot")
     print(G("✓ SAVEPOINT ") + B(m["id"]) + f"  {len(m['files'])} files  ({m['ms']} ms)  \"{m['message']}\"")
+    skipped = getattr(s, "skipped", [])
+    if skipped:
+        shown = ", ".join(skipped[:3]) + (" ..." if len(skipped) > 3 else "")
+        print(Y(f"  ! {len(skipped)} item(s) not tracked (symlinks/special files are never followed or restored): {shown}"))
 
 def cmd_log(a):
     s = store(); head = s.state()["branches"].get(s.state()["branch"])
@@ -82,24 +90,30 @@ def cmd_rollback(a):
     s = store()
     Team(".").require("rollback", load_policy("."))
     target = a.id or s.state()["branches"].get(s.state()["branch"])
-    if not a.yes and ask(Y(f"Restore working tree to {target}? Unsaved changes are lost. [y/n] "), ["y", "n"]) != "y":
+    if not a.yes and ask(Y(f"Restore working tree to {target}? Unsaved changes are saved to a rescue savepoint first. [y/n] "), ["y", "n"]) != "y":
         s.audit.record("rollback", outcome="aborted", detail="user declined", snapshot=str(target))
         print("aborted"); return
-    m = s.restore(target)
-    s.audit.record("rollback", detail="confirmed by user", snapshot=m["id"])
+    m, redo = s.rollback_with_rescue(target)
+    s.audit.record("rollback", detail="confirmed by user", snapshot=m["id"], redo=redo)
     print(G("✓ ROLLBACK TO ") + B(m["id"]) + f"  \"{m['message']}\"")
+    if redo and redo != m["id"]:
+        print(f"  undo this rollback: chrono rollback {redo}")
 
 def cmd_scan(a):
     try:
         policy = load_policy(".")
     except PolicyError as e:
         raise RuntimeError(f"{POLICY_FILE}: {e}") from e
-    r = evaluate(a.command, policy)
+    try:
+        note_policy_change(".")
+    except OSError:
+        pass
+    r = gate(a.command, ".")          # text + the scripts it runs + policy + policy pin
     col = R if r["action"] == "block" else Y if r["action"] == "approve" or r["score"] >= 30 else G
     bar = "█" * (r["score"] // 5) + "░" * (20 - r["score"] // 5)
     print(f"Blast radius: {col(bar)} {col(str(r['score']) + '/100 ' + r['level'])}  action: {col(r['action'])}")
     for why in r["reasons"]: print(f"  • {why}")
-    if policy: print(D(f"  (policy: {POLICY_FILE})"))
+    if policy: print(D(f"  (policy: {POLICY_FILE}" + (", pinned" if r.get("pin") == "ok" else "") + ")"))
     AuditLog(".").record("scan", outcome=r["action"], command=a.command,
                          risk_score=r["score"], risk_level=r["level"],
                          detail="; ".join(r["reasons"]))
@@ -235,6 +249,31 @@ def cmd_merge(a):
 
 def cmd_audit(a):
     s = store(); log = s.audit
+    if a.keys:
+        ring = KeyRing()
+        env = ring.env_key()
+        if env is not None:
+            from .audit import key_id
+            print(f"signing key: {B(key_id(env))}  (from CHRONO_AUDIT_KEY)")
+        else:
+            kid, _ = ring.active(create=True)
+            print(f"signing key: {B(str(kid))}  " + D(f"(key store: {ring.dir})") if kid else Y("signing is switched off (CHRONO_AUDIT_UNSIGNED)"))
+        for k in ring.kids():
+            print(D(f"  known key {k}"))
+        print(D(f"  witness: {log.witness_path}"))
+        print(D("  Back up the key store: a log whose key is lost can no longer be verified."))
+        return
+    if a.rotate_key:
+        new = KeyRing().rotate()
+        log.record("audit.key_rotated", detail="new signing key " + new)
+        print(G("✓ new signing key ") + B(new) + D("  — older records keep verifying with their own key"))
+        return
+    if a.reset_witness:
+        before = log.verify()
+        log.reset_witness(detail="re-anchored by a person; before reset: " + before["reason"])
+        print(G("✓ external witness re-anchored to the current log") +
+              D(f"  (before: {before['reason']})"))
+        return
     if a.push:
         r = remote_audit.push(".", a.push, verify_remote=a.verify_remote)
         log.record("audit.push", detail=f"{r['sent']} record(s) to {r['url']}", files=r["sent"])
@@ -256,9 +295,13 @@ def cmd_audit(a):
                    files=v["records"])
         print((G("✓ ") if ok else R("✗ ")) + "audit chain: " + reason +
               D(f"  ({v['records']} records)"))
+        if v.get("keys"):
+            print(D(f"  signed with key(s) {', '.join(v['keys'])}  (key store: {KeyRing().dir})"))
         if not v["ok"]:
             print(R(f"  first bad record: #{v['broken_at']}") +
                   D("  — the log was edited, truncated, reordered or re-signed"))
+            if "witness" in v["reason"]:
+                print(D("  If you restored .chrono from a backup on purpose: chrono audit --reset-witness"))
             raise SystemExit(1)
         for sid, why in bad[:5]:
             print(R("  " + sid + ": " + why))
@@ -292,7 +335,25 @@ def cmd_audit(a):
 
 # ---------------- policy / team / git / db / dashboard / mcp ----------------
 def cmd_policy(a):
+    action = getattr(a, "action", None) or "show"
+    if action == "pin":
+        fp = pin_policy(".")
+        AuditLog(".").record("policy.pin", detail=f"{POLICY_FILE} pinned at fingerprint {fp[:16]}")
+        print(G("✓ policy pinned") + D(f"  fingerprint {fp[:16]} — any later edit blocks every command "
+                                       "run through Chrono until you review it and pin again"))
+        return
+    if action == "unpin":
+        removed = unpin_policy(".")
+        if removed:
+            AuditLog(".").record("policy.unpin", detail=f"{POLICY_FILE} pin removed")
+        print(G("✓ pin removed") if removed else D("the policy was not pinned"))
+        return
     policy = load_policy(".")
+    state = pin_state(".")
+    if state == "changed":
+        print(R(f"✗ {POLICY_FILE} changed since it was pinned — every command is blocked until you run: chrono policy pin"))
+    elif state == "ok":
+        print(G("✓ pinned") + D(" (unchanged since a person pinned it)"))
     if policy is None:
         print(D(f"No {POLICY_FILE} here — built-in rules only.")); return
     t = policy["thresholds"]
@@ -303,7 +364,59 @@ def cmd_policy(a):
         print(f"  role gate: {action} needs {role}")
     for rule in policy["rules"]:
         print(f"  rule {B(str(rule['name']))}: {rule['action']} (score {rule['score']}) — {rule['reason']}")
+    if policy.get("allow"):
+        print(f"  allow-listed: {len(policy['allow'])} exact command(s)")
+    if policy.get("retention"):
+        print("  retention: " + ", ".join(f"{k} {v}" for k, v in sorted(policy["retention"].items())))
     print(G("✓ policy file is valid"))
+
+
+def cmd_guard(a):
+    from . import guard as guardmod
+    if a.guard_cmd == "hook":
+        raise SystemExit(guardmod.hook_main())
+    if a.guard_cmd == "status":
+        st = guardmod.status(".", a.scope)
+        if st.get("error"):
+            raise RuntimeError(st["error"])
+        print(f"settings: {B(st['path'])}")
+        print((G("✓ guard installed") + D(f"  matcher {st['matcher']}")) if st["installed"] else Y("✗ guard not installed"))
+        if st["installed"]:
+            print(D(f"  hook: {st['command']}"))
+            ok, detail = guardmod.self_test()
+            print((G("✓ self-test: ") if ok else R("✗ self-test: ")) + detail)
+        print(D("  raw Bash/PowerShell tools: ") + ("denied (only chrono_run can run commands)" if st["raw_shell_denied"] else "allowed, checked by the guard"))
+        return
+    if a.guard_cmd == "uninstall":
+        path, removed = guardmod.uninstall(".", a.scope)
+        AuditLog(".").record("guard.uninstall", detail=f"{a.scope}: {path}")
+        print(G("✓ guard removed from ") + str(path) if removed else D(f"no Chrono guard in {path}"))
+        return
+    path, created = guardmod.install(".", a.scope, deny_raw_shell=a.deny_raw_shell)
+    AuditLog(".").record("guard.install", detail=f"{a.scope}: {path}" + ("; raw shell denied" if a.deny_raw_shell else ""))
+    print(G("✓ guard installed" if created else "✓ guard refreshed") + f" in {path}")
+    ok, detail = guardmod.self_test()
+    print((G("✓ self-test: ") if ok else R("✗ self-test: ")) + detail)
+    if not ok:
+        print(Y("  The client could not run the hook with this Python. Install chrono-agent for it:"))
+        print(Y(f'  "{sys.executable}" -m pip install --upgrade chrono-agent-{__version__}.zip'))
+        raise SystemExit(1)
+    print(D("  Restart your AI client so it loads the new settings. Edits to Chrono's own files by the agent are refused too."))
+
+
+def cmd_prune(a):
+    s = store()
+    keep, days = a.keep_auto, a.older_than
+    if keep is None and days is None:
+        retention = (load_policy(".") or {}).get("retention") or {}
+        keep, days = retention.get("keep_auto"), retention.get("older_than_days")
+    r = s.prune(keep_auto=keep, older_than_days=days, dry_run=a.dry_run)
+    verb = "would delete" if a.dry_run else "deleted"
+    print(G(f"✓ {verb} {len(r['deleted'])} automatic savepoint(s)") +
+          D(f", {r['objects_removed']} unused file version(s), {r['bytes_freed']} bytes; {r['kept']} savepoint(s) kept"))
+    if a.dry_run:
+        for sid in r["deleted"][:20]:
+            print(D("  " + sid))
 
 def cmd_team(a):
     s = store(); team = Team(".")
@@ -442,7 +555,28 @@ def main(argv=None):
     x = sub.add_parser("rollback", help="restore a savepoint"); x.add_argument("id", nargs="?"); x.add_argument("-y", "--yes", action="store_true"); x.set_defaults(f=cmd_rollback)
     x = sub.add_parser("scan", help="blast-radius check for a command"); x.add_argument("command"); x.set_defaults(f=cmd_scan)
     x = sub.add_parser("run", help="run a command inside a transaction"); x.add_argument("--force", action="store_true"); x.add_argument("--shell", action="store_true", help="explicit shell execution; pass one quoted command string"); x.add_argument("--approver", help="name of the human approving a policy-gated command"); x.add_argument("--approval-reason", help="why the approver allowed it"); x.add_argument("command", nargs=argparse.REMAINDER); x.set_defaults(f=cmd_run)
-    sub.add_parser("policy", help="show and validate chrono-policy.yaml").set_defaults(f=cmd_policy)
+    x = sub.add_parser("policy", help="show and validate chrono-policy.yaml; pin it after review")
+    x.add_argument("action", nargs="?", choices=["show", "pin", "unpin"], default="show",
+                   help="pin: any later edit blocks every command until a person pins again")
+    x.set_defaults(f=cmd_policy)
+    x = sub.add_parser("guard", help="guard an AI client's own shell and edit tools (Claude Code hook)")
+    gs = x.add_subparsers(dest="guard_cmd", required=True)
+    for name, text in (("install", "add the PreToolUse hook to the client settings"),
+                       ("uninstall", "remove the hook Chrono added"),
+                       ("status", "show the hook and run a self-test")):
+        t = gs.add_parser(name, help=text)
+        t.add_argument("--scope", choices=["project", "user"], default="project",
+                       help="project: .claude/settings.json here (default); user: ~/.claude/settings.json")
+        if name == "install":
+            t.add_argument("--deny-raw-shell", action="store_true",
+                           help="also deny the client's Bash/PowerShell tools, so only MCP chrono_run can run commands")
+        t.set_defaults(f=cmd_guard)
+    gs.add_parser("hook", help="(called by the AI client) read one tool call as JSON on stdin").set_defaults(f=cmd_guard)
+    x = sub.add_parser("prune", help="delete old automatic savepoints and unused file versions")
+    x.add_argument("--keep-auto", type=int, help="keep the newest N automatic savepoints")
+    x.add_argument("--older-than", type=float, help="delete automatic savepoints older than N days")
+    x.add_argument("--dry-run", action="store_true", help="only show what would be deleted")
+    x.set_defaults(f=cmd_prune)
     x = sub.add_parser("team", help="local team roster and roles")
     ts = x.add_subparsers(dest="team_cmd", required=True)
     ts.add_parser("list").set_defaults(f=cmd_team)
@@ -474,11 +608,15 @@ def main(argv=None):
     x.add_argument("--verify", action="store_true", help="check the hash chain for tampering")
     x.add_argument("--push", metavar="URL", help="push new records to a remote append-only audit store")
     x.add_argument("--verify-remote", action="store_true", help="with --push: also compare the remote chain head")
+    x.add_argument("--keys", action="store_true", help="show the signing key id and where keys are stored (never the key)")
+    x.add_argument("--rotate-key", action="store_true", help="start signing with a fresh key (old records still verify)")
+    x.add_argument("--reset-witness", action="store_true",
+                   help="accept the current log as the reference point (after restoring .chrono from a backup)")
     x.set_defaults(f=cmd_audit)
     x = sub.add_parser("demo", help="replay the agent-blunder scenario"); x.add_argument("task", nargs="*"); x.set_defaults(f=cmd_demo)
     from .fleet_cli import install
     install(sub)
-    known = {"gateway","fleet","approvals","init","snapshot","log","status","diff","rollback","scan","run","branch","checkout","merge","demo","audit","policy","team","git","db","dashboard","mcp","-h","--help","--version"}
+    known = {"gateway","fleet","approvals","init","snapshot","log","status","diff","rollback","scan","run","branch","checkout","merge","demo","audit","policy","team","git","db","dashboard","mcp","guard","prune","-h","--help","--version"}
     argv = sys.argv[1:] if argv is None else argv
     if argv and argv[0] not in known and not argv[0].startswith("-") and " " in argv[0]:  # compatibility: quoted task -> demo
         argv = ["demo"] + argv
