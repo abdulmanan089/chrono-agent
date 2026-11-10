@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "chrono-agent"
 version = "0.5.0"
 description = "Safety layer for AI coding agents: blocks dangerous commands and dangerous scripts, savepoints and rollback for project files, and a signed, tamper-evident audit trail."
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 readme = "README.md"
 authors = [{ name = "Abdul Manan", email = "manandogar112@gmail.com" }]
 license = "LicenseRef-Proprietary"
@@ -20,6 +20,10 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Security",
     "Topic :: Software Development :: Version Control",
 ]

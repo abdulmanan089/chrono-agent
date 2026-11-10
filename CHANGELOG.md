@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+- Supported Python is now **3.10 to 3.13**, the versions CI tests on Ubuntu, Windows and macOS
+  (`requires-python = ">=3.10"`). The 0.5.0 package already on PyPI still declares Python 3.8+.
+- CI: Python 3.8 was dropped (it cannot build the package's license metadata), and the macOS fleet tests now
+  use the resolved temporary folder (`/var` is a symlink to `/private/var` on macOS).
+
 ## 0.5.0 — fixes for the independent audit of 0.4.1rc2
 
 An independent hands-on audit of 0.4.1rc2 on Windows 11 found the gate, rollback and audit chain working, plus

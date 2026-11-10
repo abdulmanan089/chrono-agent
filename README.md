@@ -1,7 +1,7 @@
 # Chrono Agent — a safety layer for AI coding agents
 
 [![PyPI](https://img.shields.io/pypi/v/chrono-agent?label=PyPI)](https://pypi.org/project/chrono-agent/)
-![Python](https://img.shields.io/badge/python-3.8%2B-blue)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-source--available-orange)
 ![Tests](https://img.shields.io/badge/tests-235%20run%20%C2%B7%200%20failed-brightgreen)
 ![Red team](https://img.shields.io/badge/red%20team-45%20pass%20%C2%B7%200%20fail%20%C2%B7%208%20limits-brightgreen)
@@ -49,7 +49,7 @@ Chrono Agent sits between an AI coding agent and your machine. It does four thin
 3. **Keeps a signed, tamper-evident audit log** of everything that was scanned, blocked, run, restored or approved.
 4. **Guards the agent's own shell and edit tools** (Claude Code hook), not only the commands it chooses to send to Chrono.
 
-It is a dependency-free Python package (3.8+) with a CLI (`chrono`), an MCP server for AI clients, and a Python SDK. The fleet gateway pilot is described in `FLEET.md`.
+It is a dependency-free Python package (3.10+) with a CLI (`chrono`), an MCP server for AI clients, and a Python SDK. The fleet gateway pilot is described in `FLEET.md`.
 
 > **Read "What Chrono cannot do" below before you rely on it.** It is a guardrail for cooperating tools on one machine. It is not a sandbox, an antivirus or a backup.
 
@@ -58,7 +58,7 @@ It is a dependency-free Python package (3.8+) with a CLI (`chrono`), an MCP serv
 python -m pip install --upgrade chrono-agent
 python -m chrono_agent --version
 ```
-Expected: `chrono-agent 0.5.0`. If `chrono` is not on PATH, every example also works as `python -m chrono_agent ...`. Python 3.8 or newer is required.
+Expected: `chrono-agent 0.5.0`. If `chrono` is not on PATH, every example also works as `python -m chrono_agent ...`. Python 3.10 or newer is required.
 
 Upgrading from 0.4.x keeps your `.chrono` folders. Old audit records keep verifying, and new records are signed from the first action after the upgrade (see *Audit trail*).
 
